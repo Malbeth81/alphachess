@@ -48,6 +48,7 @@ struct NetworkGameRoomInfo
   int PlayerCount;
 };
 
+HWND GetNetworkDialogHandle();
 int ShowNetworkGameDialog(HINSTANCE Instance, HWND hWindow, NetworkGameDialogValues* Values);
 
 #endif

@@ -24,6 +24,7 @@ struct InputDialogValues
   string Title;
   string Message;
   string* Value;
+  unsigned short MinLength;
 };
 
 // WINAPI FUNCTIONS ------------------------------------------------------------
@@ -41,8 +42,22 @@ static BOOL __stdcall InputDialogProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARA
         {
           InputDialogValues* Values = (InputDialogValues*)GetWindowLong(hDlg, GWL_USERDATA);
 
-          Values->Value->assign(GetWindowText(GetDlgItem(hDlg, IDC_INPUT)));
-          PostMessage(hDlg, WM_CLOSE, 1, 0);
+          char* Text = GetWindowText(GetDlgItem(hDlg, IDC_INPUT));
+          if (strlen(Text) >= Values->MinLength)
+          {
+            Values->Value->assign(Text);
+            PostMessage(hDlg, WM_CLOSE, 1, 0);
+          }
+          else
+          {
+            string Message = "You must enter at least ";
+            char* Str = inttostr(Values->MinLength);
+            Message.append(Str);
+            delete[] Str;
+            Message.append(" characters.");
+            MessageBox(hDlg, Message.c_str(), Values->Title.c_str(), MB_OK|MB_ICONERROR);
+          }
+          delete[] Text;
           break;
         }
         case IDCANCEL:
@@ -75,12 +90,13 @@ static BOOL __stdcall InputDialogProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARA
 
 // Public functions ------------------------------------------------------------
 
-int InputDialog(HINSTANCE Instance, HWND hParent, const string Title, const string Message, string* Value)
+int InputDialog(HINSTANCE Instance, HWND hParent, const string Title, const string Message, string* Value, unsigned short MinLength)
 {
   InputDialogValues* Values = new InputDialogValues;
   Values->Title = Title;
   Values->Message = Message;
   Values->Value = Value;
+  Values->MinLength = MinLength;
   int Result = DialogBoxParam(Instance, MAKEINTRESOURCE(IDD_INPUT), hParent, (DLGPROC)InputDialogProc, (LPARAM)Values);
   delete Values;
   return Result;

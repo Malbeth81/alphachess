@@ -59,19 +59,28 @@ INT_PTR __stdcall LocalGameDialogProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARA
           /* Read controls' information */
           char* BlackPlayerName = GetWindowText(GetDlgItem(hDlg,IDC_BLACKPLAYERNAME));
           char* WhitePlayerName = GetWindowText(GetDlgItem(hDlg,IDC_WHITEPLAYERNAME));
-          Values->BlackPlayerName = BlackPlayerName;
-          Values->WhitePlayerName = WhitePlayerName;
+          if (strlen(WhitePlayerName) > 0)
+          {
+            if (strlen(BlackPlayerName) > 0)
+            {
+              Values->BlackPlayerName.assign(BlackPlayerName);
+              Values->WhitePlayerName.assign(WhitePlayerName);
+              Values->WhitePlayerIsComputer = (SendDlgItemMessage(hDlg, IDC_WHITEPLAYER, CB_GETCURSEL, 0, 0) > 0);
+              Values->BlackPlayerIsComputer = (SendDlgItemMessage(hDlg, IDC_BLACKPLAYER, CB_GETCURSEL, 0, 0) > 0);
+              Values->GameMode = SendDlgItemMessage(hDlg, IDC_GAMETYPE, CB_GETCURSEL, 0, 0);
+              char* TimePerMove = GetWindowText(GetDlgItem(hDlg,IDC_MOVETIME));
+              Values->TimePerMove = (unsigned int)atoi(TimePerMove);
+              delete[] TimePerMove;
+              /* Close dialog */
+              PostMessage(hDlg,WM_CLOSE,1,0);
+            }
+            else
+              MessageBox(hDlg, "Please enter the black player's name.", "New local game", MB_OK|MB_ICONERROR);
+          }
+          else
+            MessageBox(hDlg, "Please enter the white player's name.", "New local game", MB_OK|MB_ICONERROR);
           delete[] BlackPlayerName;
           delete[] WhitePlayerName;
-          Values->WhitePlayerIsComputer = (SendDlgItemMessage(hDlg, IDC_WHITEPLAYER, CB_GETCURSEL, 0, 0) > 0);
-          Values->BlackPlayerIsComputer = (SendDlgItemMessage(hDlg, IDC_BLACKPLAYER, CB_GETCURSEL, 0, 0) > 0);
-          Values->GameMode = SendDlgItemMessage(hDlg, IDC_GAMETYPE, CB_GETCURSEL, 0, 0);
-          char* TimePerMove = GetWindowText(GetDlgItem(hDlg,IDC_MOVETIME));
-          Values->TimePerMove = (unsigned int)atoi(TimePerMove);
-          delete[] TimePerMove;
-
-          /* Close dialog */
-          PostMessage(hDlg,WM_CLOSE,1,0);
           break;
         }
       }

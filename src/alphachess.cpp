@@ -38,11 +38,13 @@ AlphaChess::AlphaChess(HINSTANCE hInstance, HWND hParent)
   /* Initialise class members */
   Handle = NULL;
   Cursor = LoadCursor(NULL, IDC_ARROW);
+  //Animation1 = (HICON)LoadImage(hInstance, "ID_ANIMATION", IMAGE_ICON, 0, 0, LR_SHARED);
   GameMenu = NULL;
   HelpMenu = NULL;
   MainMenu = NULL;
   ViewMenu = NULL;
 
+  Evaluator = NULL;
   Game = NULL;
   NetworkClient = NULL;
 
@@ -463,6 +465,266 @@ void AlphaChess::LoadTheme(string ThemeName)
   hChessBoardPanel->SetTheme(Theme);
 }
 
+void AlphaChess::Notify(const int Event, const void* Param)
+{
+  static ChessGameState LastGameState = Undefined;
+
+  switch (Event)
+  {
+    case PlayerUpdated:
+    {
+      hBlackPlayerPanel->Invalidate();
+      hWhitePlayerPanel->Invalidate();
+      break;
+    }
+    case StateChanged:
+    {
+      if (Game->GetState() == Undefined)
+      {
+        /* Reset panels */
+        hBlackPlayerPanel->SetReady(false);
+        hWhitePlayerPanel->SetReady(false);
+        hCapturePanel->Invalidate();
+        hChessBoardPanel->Invalidate();
+        hHistoryPanel->Invalidate();
+      }
+      else if (Game->GetState() == Started)
+      {
+        if (LastGameState == Paused)
+        {
+          /* Add a message in the chat panel */
+          if (NetworkGame)
+            hChatPanel->AddLine("The game has started.");
+        }
+        else if (NetworkGame)
+        {
+          /* Add a message in the chat panel */
+          hChatPanel->AddLine("The game has resumed.");
+
+          /* Disable menu items */
+          if (NetworkClient->GetLocalPlayer() == NetworkClient->GetBlackPlayer())
+            hBlackPlayerPanel->EnableLeaveButton(false);
+          else if (NetworkClient->GetLocalPlayer() == NetworkClient->GetWhitePlayer())
+            hWhitePlayerPanel->EnableLeaveButton(false);
+        }
+
+        /* Reset player status */
+        hBlackPlayerPanel->SetReady(false);
+        hWhitePlayerPanel->SetReady(false);
+
+        /* Enable menu items */
+        EnableMenuItem(GameMenu,IDS_MAINMENU_GAME_PAUSE,MF_BYCOMMAND|MF_ENABLED);
+        EnableMenuItem(GameMenu,IDS_MAINMENU_GAME_TAKEBACKMOVE,MF_BYCOMMAND|MF_ENABLED);
+        EnableMenuItem(GameMenu,IDS_MAINMENU_GAME_OFFERDRAW,MF_BYCOMMAND|MF_ENABLED);
+        EnableMenuItem(GameMenu,IDS_MAINMENU_GAME_RESIGN,MF_BYCOMMAND|MF_ENABLED);
+
+        /* Uncheck menu items */
+        CheckMenuItem(GameMenu,IDS_MAINMENU_GAME_PAUSE,MF_BYCOMMAND|MF_UNCHECKED);
+
+        /* Unlock the chess board */
+        hChessBoardPanel->SetPaused(false);
+      }
+      else if (Game->GetState() == Paused)
+      {
+        if (NetworkGame)
+        {
+          /* Add a message in the chat panel */
+          hChatPanel->AddLine("The game is paused.");
+
+          /* Enable menu items */
+          if (NetworkClient->GetLocalPlayer() == NetworkClient->GetBlackPlayer())
+            hBlackPlayerPanel->EnableLeaveButton(true);
+          else if (NetworkClient->GetLocalPlayer() == NetworkClient->GetWhitePlayer())
+            hWhitePlayerPanel->EnableLeaveButton(true);
+        }
+
+        /* Disable menu items */
+        EnableMenuItem(GameMenu,IDS_MAINMENU_GAME_PAUSE,MF_BYCOMMAND|MF_ENABLED);
+        EnableMenuItem(GameMenu,IDS_MAINMENU_GAME_TAKEBACKMOVE,MF_BYCOMMAND|MF_GRAYED);
+        EnableMenuItem(GameMenu,IDS_MAINMENU_GAME_OFFERDRAW,MF_BYCOMMAND|MF_GRAYED);
+        EnableMenuItem(GameMenu,IDS_MAINMENU_GAME_RESIGN,MF_BYCOMMAND|MF_GRAYED);
+
+        /* Check menu items */
+        CheckMenuItem(GameMenu,IDS_MAINMENU_GAME_PAUSE,MF_BYCOMMAND|MF_CHECKED);
+
+        /* Lock the chess board */
+        hChessBoardPanel->SetPaused(true);
+      }
+      else if (Game->GetState() == EndedInCheckMate || Game->GetState() == EndedInStaleMate || Game->GetState() == EndedInDraw || Game->GetState() == EndedInForfeit || Game->GetState() == EndedInTimeout)
+      {
+        if (NetworkGame)
+        {
+          /* Add a message in the chat panel */
+          if (Game->GetState() == EndedInDraw || Game->GetState() == EndedInStaleMate)
+            hChatPanel->AddLine("The game has ended in a draw.");
+          else if (Game->GetState() == EndedInForfeit)
+            hChatPanel->AddLine(Game->GetPlayer(!Game->GetActivePlayer())->Name + " has resigned.");
+          else
+            hChatPanel->AddLine(Game->GetPlayer(Game->GetActivePlayer())->Name + " has won.");
+
+          /* Notify the server */
+          NetworkClient->GameHasEnded();
+
+          /* Enable menu items */
+          if (NetworkClient->GetLocalPlayer() == NetworkClient->GetBlackPlayer())
+          {
+            hBlackPlayerPanel->EnableLeaveButton(true);
+            hBlackPlayerPanel->EnableReadyButton(true);
+          }
+          else if (NetworkClient->GetLocalPlayer() == NetworkClient->GetWhitePlayer())
+          {
+            hWhitePlayerPanel->EnableLeaveButton(true);
+            hWhitePlayerPanel->EnableReadyButton(true);
+          }
+        }
+
+        /* Lock the chess board */
+        hChessBoardPanel->SetLocked(true);
+
+        /* Disable menu items */
+        EnableMenuItem(GameMenu,IDS_MAINMENU_GAME_PAUSE,MF_BYCOMMAND|MF_GRAYED);
+        EnableMenuItem(GameMenu,IDS_MAINMENU_GAME_TAKEBACKMOVE,MF_BYCOMMAND|MF_GRAYED);
+        EnableMenuItem(GameMenu,IDS_MAINMENU_GAME_OFFERDRAW,MF_BYCOMMAND|MF_GRAYED);
+        EnableMenuItem(GameMenu,IDS_MAINMENU_GAME_RESIGN,MF_BYCOMMAND|MF_GRAYED);
+
+        /* Uncheck menu items */
+        CheckMenuItem(GameMenu,IDS_MAINMENU_GAME_PAUSE,MF_BYCOMMAND|MF_UNCHECKED);
+
+        if (LastGameState == Started && MessageBox(Handle,"Do you want to save this game?","Game ended",MB_YESNO|MB_ICONQUESTION) == IDYES)
+          SaveGame();
+      }
+      else if (Game->GetState() == Postponed)
+      {
+        /* Lock the chess board */
+        hChessBoardPanel->SetLocked(true);
+
+        /* Disable menu items */
+        EnableMenuItem(GameMenu,IDS_MAINMENU_GAME_TAKEBACKMOVE,MF_BYCOMMAND|MF_GRAYED);
+        EnableMenuItem(GameMenu,IDS_MAINMENU_GAME_PAUSE,MF_BYCOMMAND|MF_GRAYED);
+        EnableMenuItem(GameMenu,IDS_MAINMENU_GAME_OFFERDRAW,MF_BYCOMMAND|MF_GRAYED);
+        EnableMenuItem(GameMenu,IDS_MAINMENU_GAME_RESIGN,MF_BYCOMMAND|MF_GRAYED);
+
+        /* Uncheck menu items */
+        CheckMenuItem(GameMenu,IDS_MAINMENU_GAME_PAUSE,MF_BYCOMMAND|MF_UNCHECKED);
+      }
+
+      LastGameState = Game->GetState();
+      break;
+    }
+    case BoardUpdated:
+    {
+      /* Refresh the panels */
+      hBlackPlayerPanel->Invalidate();
+      hWhitePlayerPanel->Invalidate();
+      hChessBoardPanel->Invalidate();
+      hCapturePanel->Invalidate();
+      hHistoryPanel->Invalidate();
+      PostMessage(hHistoryPanel->GetHandle(),WM_VSCROLL,MAKEWPARAM(SB_BOTTOM,0),0);
+
+      /* Lock the chess board */
+      hChessBoardPanel->SetLocked(!Game->IsLastMoveDisplayed());
+
+      /* Add a message in the chat panel */
+      if (NetworkGame)
+      {
+        if (Game->IsPlayerChecked() && Game->IsPlayerMated())
+          hChatPanel->AddLine(Game->GetPlayer(Game->GetActivePlayer())->Name + " is checkmate.");
+        else if (Game->IsPlayerMated())
+          hChatPanel->AddLine(Game->GetPlayer(Game->GetActivePlayer())->Name + " is stalemate.");
+        else if (Game->IsPlayerChecked())
+          hChatPanel->AddLine(Game->GetPlayer(Game->GetActivePlayer())->Name + " is in check.");
+      }
+      break;
+    }
+    case PiecePromoted:
+    {
+      /* Promote the chess piece */
+      if (!NetworkGame || (Game->GetActivePlayer() == White && NetworkClient->GetLocalPlayer() == NetworkClient->GetWhitePlayer()) || (Game->GetActivePlayer() == Black && NetworkClient->GetLocalPlayer() == NetworkClient->GetBlackPlayer()))
+      {
+        ChessPieceType Type = Queen;
+        //if (!AlwaysPromoteToQueen)
+        //  Type = (ChessPieceType)ShowPromotionDialog(Handle, FindChessSet(CurrentChessSet));
+        if (NetworkGame)
+          NetworkClient->PromoteTo(Type);
+        else
+          Game->PromotePawnTo(Type);
+      }
+      break;
+    }
+    case TurnEnded:
+    {
+      /* Update the chess board information layer */
+      hChessBoardPanel->ClearPossibleMoves();
+      if (Evaluator != NULL)
+        delete Evaluator;
+      Evaluator = Game->GetEvaluator();
+      Evaluator->AddObserver(this);
+
+      if (NetworkGame)
+      {
+        /* Lock the chess board panel if it is not current player's turn */
+        if (NetworkClient->GetLocalPlayer() != NULL && NetworkClient->GetBlackPlayer() != NULL && NetworkClient->GetWhitePlayer() != NULL)
+        {
+          if ((Game->GetActivePlayer() == Black && NetworkClient->GetLocalPlayer() == NetworkClient->GetBlackPlayer()) || (Game->GetActivePlayer() == White && NetworkClient->GetLocalPlayer() == NetworkClient->GetWhitePlayer()))
+          {
+            hChessBoardPanel->SetLocked(false);
+
+            /* Start the timer for the current player */
+            LastTickCount = GetTickCount();
+            SetTimer(Handle, ChessTimerID, 200, NULL);
+          }
+          else
+            hChessBoardPanel->SetLocked(true);
+        }
+      }
+      else if ((WhitePlayerIsComputer && Game->GetActivePlayer() == White) || (BlackPlayerIsComputer && Game->GetActivePlayer() == Black))
+      {
+        /* Lock the chess board */
+        hChessBoardPanel->SetLocked(true);
+
+        /* Find a move and make it */
+        //ChessAiMove* Move = Ai.Execute(Game,Depth,Window)(6, 100);
+        //if (Move != NULL)
+        {
+          //Game->MakeMove(Move->From,Move->To);
+          //delete Move;
+        }
+      }
+      else
+      {
+        /* Unlock the chess board */
+        hChessBoardPanel->SetLocked(false);
+
+        /* Start the timer for the current player */
+        LastTickCount = GetTickCount();
+        SetTimer(Handle, ChessTimerID, 200, NULL);
+      }
+
+      /* Update the players information */
+      hWhitePlayerPanel->Invalidate();
+      hBlackPlayerPanel->Invalidate();
+
+      /* Switch the view */
+      if (AutomaticallySwitchView && !NetworkGame && !WhitePlayerIsComputer && !BlackPlayerIsComputer)
+        RotateView(Game->GetActivePlayer() == Black);
+      break;
+    }
+    case EvaluationCompleted:
+    {
+      LinkedList<PossibleChessMove>* Moves = (LinkedList<PossibleChessMove>*)Param;
+      PossibleChessMove* Move = Moves->GetFirst();
+      while (Move != NULL)
+      {
+        PossibleChessMove* NewMove = new PossibleChessMove;
+        *NewMove = *Move;
+        hChessBoardPanel->DisplayPossibleMove(NewMove);
+        Move = Moves->GetNext();
+      }
+      break;
+    }
+  }
+}
+
 void AlphaChess::RotateView(bool Value)
 {
   /* Invert the chess board view */
@@ -632,249 +894,6 @@ void AlphaChess::ShowPlayerPanels(bool Value)
 
   /* Check menu item */
   CheckMenuItem(ViewMenu, IDS_MAINMENU_VIEW_PLAYERS, MF_BYCOMMAND | (PlayersInfoVisible ? MF_CHECKED : MF_UNCHECKED));
-}
-
-void AlphaChess::Update(const Observable* object, int Event)
-{
-  static ChessGameState LastGameState = Undefined;
-
-  if ((ChessGame*)object == Game)
-  {
-    switch ((ChessGameEvent)Event)
-    {
-      case PlayerUpdated:
-      {
-        hBlackPlayerPanel->Invalidate();
-        hWhitePlayerPanel->Invalidate();
-        break;
-      }
-      case StateChanged:
-      {
-        if (Game->GetState() == Undefined)
-        {
-          /* Reset panels */
-          hBlackPlayerPanel->SetReady(false);
-          hWhitePlayerPanel->SetReady(false);
-          hCapturePanel->Invalidate();
-          hChessBoardPanel->Invalidate();
-          hHistoryPanel->Invalidate();
-        }
-        else if (Game->GetState() == Started)
-        {
-          if (LastGameState == Paused)
-          {
-            /* Add a message in the chat panel */
-            if (NetworkGame)
-              hChatPanel->AddLine("The game has started.");
-          }
-          else if (NetworkGame)
-          {
-            /* Add a message in the chat panel */
-            hChatPanel->AddLine("The game has resumed.");
-
-            /* Disable menu items */
-            if (NetworkClient->GetLocalPlayer() == NetworkClient->GetBlackPlayer())
-              hBlackPlayerPanel->EnableLeaveButton(false);
-            else if (NetworkClient->GetLocalPlayer() == NetworkClient->GetWhitePlayer())
-              hWhitePlayerPanel->EnableLeaveButton(false);
-          }
-
-          /* Reset player status */
-          hBlackPlayerPanel->SetReady(false);
-          hWhitePlayerPanel->SetReady(false);
-
-          /* Enable menu items */
-          EnableMenuItem(GameMenu,IDS_MAINMENU_GAME_PAUSE,MF_BYCOMMAND|MF_ENABLED);
-          EnableMenuItem(GameMenu,IDS_MAINMENU_GAME_TAKEBACKMOVE,MF_BYCOMMAND|MF_ENABLED);
-          EnableMenuItem(GameMenu,IDS_MAINMENU_GAME_OFFERDRAW,MF_BYCOMMAND|MF_ENABLED);
-          EnableMenuItem(GameMenu,IDS_MAINMENU_GAME_RESIGN,MF_BYCOMMAND|MF_ENABLED);
-
-          /* Uncheck menu items */
-          CheckMenuItem(GameMenu,IDS_MAINMENU_GAME_PAUSE,MF_BYCOMMAND|MF_UNCHECKED);
-
-          /* Unlock the chess board */
-          hChessBoardPanel->SetPaused(false);
-        }
-        else if (Game->GetState() == Paused)
-        {
-          if (NetworkGame)
-          {
-            /* Add a message in the chat panel */
-            hChatPanel->AddLine("The game is paused.");
-
-            /* Enable menu items */
-            if (NetworkClient->GetLocalPlayer() == NetworkClient->GetBlackPlayer())
-              hBlackPlayerPanel->EnableLeaveButton(true);
-            else if (NetworkClient->GetLocalPlayer() == NetworkClient->GetWhitePlayer())
-              hWhitePlayerPanel->EnableLeaveButton(true);
-          }
-
-          /* Disable menu items */
-          EnableMenuItem(GameMenu,IDS_MAINMENU_GAME_PAUSE,MF_BYCOMMAND|MF_ENABLED);
-          EnableMenuItem(GameMenu,IDS_MAINMENU_GAME_TAKEBACKMOVE,MF_BYCOMMAND|MF_GRAYED);
-          EnableMenuItem(GameMenu,IDS_MAINMENU_GAME_OFFERDRAW,MF_BYCOMMAND|MF_GRAYED);
-          EnableMenuItem(GameMenu,IDS_MAINMENU_GAME_RESIGN,MF_BYCOMMAND|MF_GRAYED);
-
-          /* Check menu items */
-          CheckMenuItem(GameMenu,IDS_MAINMENU_GAME_PAUSE,MF_BYCOMMAND|MF_CHECKED);
-
-          /* Lock the chess board */
-          hChessBoardPanel->SetPaused(true);
-        }
-        else if (Game->GetState() == EndedInCheckMate || Game->GetState() == EndedInStaleMate || Game->GetState() == EndedInDraw || Game->GetState() == EndedInForfeit || Game->GetState() == EndedInTimeout)
-        {
-          if (NetworkGame)
-          {
-            /* Add a message in the chat panel */
-            if (Game->GetState() == EndedInDraw || Game->GetState() == EndedInStaleMate)
-              hChatPanel->AddLine("The game has ended in a draw.");
-            else if (Game->GetState() == EndedInForfeit)
-              hChatPanel->AddLine(Game->GetPlayer(!Game->GetActivePlayer())->Name + " has resigned.");
-            else
-              hChatPanel->AddLine(Game->GetPlayer(Game->GetActivePlayer())->Name + " has won.");
-
-            /* Notify the server */
-            NetworkClient->GameHasEnded();
-
-            /* Enable menu items */
-            if (NetworkClient->GetLocalPlayer() == NetworkClient->GetBlackPlayer())
-            {
-              hBlackPlayerPanel->EnableLeaveButton(true);
-              hBlackPlayerPanel->EnableReadyButton(true);
-            }
-            else if (NetworkClient->GetLocalPlayer() == NetworkClient->GetWhitePlayer())
-            {
-              hWhitePlayerPanel->EnableLeaveButton(true);
-              hWhitePlayerPanel->EnableReadyButton(true);
-            }
-          }
-
-          /* Lock the chess board */
-          hChessBoardPanel->SetLocked(true);
-
-          /* Disable menu items */
-          EnableMenuItem(GameMenu,IDS_MAINMENU_GAME_PAUSE,MF_BYCOMMAND|MF_GRAYED);
-          EnableMenuItem(GameMenu,IDS_MAINMENU_GAME_TAKEBACKMOVE,MF_BYCOMMAND|MF_GRAYED);
-          EnableMenuItem(GameMenu,IDS_MAINMENU_GAME_OFFERDRAW,MF_BYCOMMAND|MF_GRAYED);
-          EnableMenuItem(GameMenu,IDS_MAINMENU_GAME_RESIGN,MF_BYCOMMAND|MF_GRAYED);
-
-          /* Uncheck menu items */
-          CheckMenuItem(GameMenu,IDS_MAINMENU_GAME_PAUSE,MF_BYCOMMAND|MF_UNCHECKED);
-
-          if (LastGameState == Started && MessageBox(Handle,"Do you want to save this game?","Game ended",MB_YESNO|MB_ICONQUESTION) == IDYES)
-            SaveGame();
-        }
-        else if (Game->GetState() == Postponed)
-        {
-          /* Lock the chess board */
-          hChessBoardPanel->SetLocked(true);
-
-          /* Disable menu items */
-          EnableMenuItem(GameMenu,IDS_MAINMENU_GAME_TAKEBACKMOVE,MF_BYCOMMAND|MF_GRAYED);
-          EnableMenuItem(GameMenu,IDS_MAINMENU_GAME_PAUSE,MF_BYCOMMAND|MF_GRAYED);
-          EnableMenuItem(GameMenu,IDS_MAINMENU_GAME_OFFERDRAW,MF_BYCOMMAND|MF_GRAYED);
-          EnableMenuItem(GameMenu,IDS_MAINMENU_GAME_RESIGN,MF_BYCOMMAND|MF_GRAYED);
-
-          /* Uncheck menu items */
-          CheckMenuItem(GameMenu,IDS_MAINMENU_GAME_PAUSE,MF_BYCOMMAND|MF_UNCHECKED);
-        }
-
-        LastGameState = Game->GetState();
-        break;
-      }
-      case BoardUpdated:
-      {
-        /* Refresh the panels */
-        hBlackPlayerPanel->Invalidate();
-        hWhitePlayerPanel->Invalidate();
-        hChessBoardPanel->Invalidate();
-        hCapturePanel->Invalidate();
-        hHistoryPanel->Invalidate();
-        PostMessage(hHistoryPanel->GetHandle(),WM_VSCROLL,MAKEWPARAM(SB_BOTTOM,0),0);
-
-        /* Lock the chess board */
-        hChessBoardPanel->SetLocked(!Game->IsLastMoveDisplayed());
-
-        /* Add a message in the chat panel */
-        if (NetworkGame)
-        {
-          if (Game->IsPlayerChecked() && Game->IsPlayerMated())
-            hChatPanel->AddLine(Game->GetPlayer(Game->GetActivePlayer())->Name + " is checkmate.");
-          else if (Game->IsPlayerMated())
-            hChatPanel->AddLine(Game->GetPlayer(Game->GetActivePlayer())->Name + " is stalemate.");
-          else if (Game->IsPlayerChecked())
-            hChatPanel->AddLine(Game->GetPlayer(Game->GetActivePlayer())->Name + " is in check.");
-        }
-        break;
-      }
-      case PiecePromoted:
-      {
-        /* Promote the chess piece */
-        if (!NetworkGame || (Game->GetActivePlayer() == White && NetworkClient->GetLocalPlayer() == NetworkClient->GetWhitePlayer()) || (Game->GetActivePlayer() == Black && NetworkClient->GetLocalPlayer() == NetworkClient->GetBlackPlayer()))
-        {
-          ChessPieceType Type = Queen;
-          //if (!AlwaysPromoteToQueen)
-          //  Type = (ChessPieceType)ShowPromotionDialog(Handle, FindChessSet(CurrentChessSet));
-          if (NetworkGame)
-            NetworkClient->PromoteTo(Type);
-          else
-            Game->PromotePawnTo(Type);
-        }
-        break;
-      }
-      case TurnEnded:
-      {
-        if (NetworkGame)
-        {
-          /* Lock the chess board panel if it is not current player's turn */
-          if (NetworkClient->GetLocalPlayer() != NULL && NetworkClient->GetBlackPlayer() != NULL && NetworkClient->GetWhitePlayer() != NULL)
-          {
-            if ((Game->GetActivePlayer() == Black && NetworkClient->GetLocalPlayer() == NetworkClient->GetBlackPlayer()) || (Game->GetActivePlayer() == White && NetworkClient->GetLocalPlayer() == NetworkClient->GetWhitePlayer()))
-            {
-              hChessBoardPanel->SetLocked(false);
-
-              /* Start the timer for the current player */
-              LastTickCount = GetTickCount();
-              SetTimer(Handle, ChessTimerID, 250, NULL);
-            }
-            else
-              hChessBoardPanel->SetLocked(true);
-          }
-        }
-        else if ((WhitePlayerIsComputer && Game->GetActivePlayer() == White) || (BlackPlayerIsComputer && Game->GetActivePlayer() == Black))
-        {
-          /* Lock the chess board */
-          hChessBoardPanel->SetLocked(true);
-
-          /* Find a move and make it */
-          //ChessAiMove* Move = Ai.Execute(Game,Depth,Window)(6, 100);
-          //if (Move != NULL)
-          {
-            //Game->MakeMove(Move->From,Move->To);
-            //delete Move;
-          }
-        }
-        else
-        {
-          /* Unlock the chess board */
-          hChessBoardPanel->SetLocked(false);
-
-          /* Start the timer for the current player */
-          LastTickCount = GetTickCount();
-          SetTimer(Handle, ChessTimerID, 250, NULL);
-        }
-
-        /* Update the players information */
-        hWhitePlayerPanel->Invalidate();
-        hBlackPlayerPanel->Invalidate();
-
-        /* Switch the view */
-        if (AutomaticallySwitchView && !NetworkGame && !WhitePlayerIsComputer && !BlackPlayerIsComputer)
-          RotateView(Game->GetActivePlayer() == Black);
-        break;
-      }
-    }
-  }
 }
 
 void AlphaChess::UpdateInterface(WPARAM wParam, LPARAM lParam)
@@ -1248,16 +1267,21 @@ void AlphaChess::UpdateInterface(WPARAM wParam, LPARAM lParam)
     }
     case RoomInfoReceived:
     {
-      /* The server sent information on a room */
       const RoomInfo* Room = (RoomInfo*)lParam;
-      NetworkGameRoomInfo* RoomInfo = new NetworkGameRoomInfo;
-      RoomInfo->RoomId = Room->RoomId;
-      RoomInfo->Name = Room->Name;
-      RoomInfo->Locked = Room->Locked;
-      RoomInfo->PlayerCount = Room->PlayerCount;
-      SendMessage(SendNetworkRoomsTo, WM_ADDROOMTOLIST, (WPARAM)RoomInfo, 0);
+      HWND Dialog = GetNetworkDialogHandle();
+      if (Dialog != NULL)
+      {
+        /* The server sent information on a room */
+        NetworkGameRoomInfo* RoomInfo = new NetworkGameRoomInfo;
+        RoomInfo->RoomId = Room->RoomId;
+        RoomInfo->Name = Room->Name;
+        RoomInfo->Locked = Room->Locked;
+        RoomInfo->PlayerCount = Room->PlayerCount;
+        SendMessage(Dialog, WM_ADDROOMTOLIST, (WPARAM)RoomInfo, 0);
+        /* Clean up */
+        delete RoomInfo;
+      }
       /* Clean up */
-      delete RoomInfo;
       delete Room;
       break;
     }
@@ -1567,6 +1591,7 @@ LRESULT __stdcall AlphaChess::WindowProc(HWND hWnd, UINT Msg, WPARAM wParam, LPA
               char* Filename = ShowSavedGamesDialog((HINSTANCE)GetWindowLong(hWnd, GWL_HINSTANCE), hWnd, GamesDirectory);
               if (Filename != NULL)
                 Window->Game->LoadFromFile(Filename);
+              delete[] Filename;
               break;
             }
             case IDS_MAINMENU_GAME_SAVEGAME:
@@ -2003,16 +2028,14 @@ LRESULT __stdcall AlphaChess::WindowProc(HWND hWnd, UINT Msg, WPARAM wParam, LPA
         if (wParam == ChessTimerID)
           Window->UpdateTime(GetTickCount());
       }
+      DrawMenuBar(hWnd);
       return 0;
     }
     case WM_UPDATEROOMLIST:
     {
       AlphaChess* Window = (AlphaChess*)GetWindowLong(hWnd, GWL_USERDATA);
       if (Window != NULL)
-      {
         Window->NetworkClient->UpdateRoomList();
-        Window->SendNetworkRoomsTo = (HWND)wParam;
-      }
       return 0;
     }
     case WM_UPDATEINTERFACE:

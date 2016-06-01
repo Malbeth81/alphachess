@@ -54,6 +54,10 @@ ChessGame::ChessGame()
 ChessGame::~ChessGame()
 {
   Clear();
+  /* Clean up */
+  delete DisplayBoard;
+  delete GameBoard;
+  delete Moves;
 }
 
 bool ChessGame::CanBePromoted(const Position Pos)
@@ -80,7 +84,7 @@ void ChessGame::Clear()
   BlackPlayer.TotalTime = 0;
 
   GameBoard->Clear();
-  DisplayBoard->Assign(GameBoard);
+  DisplayBoard->Copy(GameBoard);
   while (Moves->Size() > 0)
   {
     ChessMove* Move = Moves->Remove();
@@ -136,6 +140,11 @@ ChessPieceColor ChessGame::GetActivePlayer()
   return ActivePlayer;
 }
 
+int ChessGame::GetBoardValue()
+{
+  return GameBoard->Value();
+}
+
 int ChessGame::GetCaptureCount()
 {
   return CaptureCount;
@@ -144,6 +153,11 @@ int ChessGame::GetCaptureCount()
 const ChessMove* ChessGame::GetDisplayedMove()
 {
   return Moves->Get(CurrentMove);
+}
+
+ChessEvaluator* ChessGame::GetEvaluator()
+{
+  return new ChessEvaluator(GameBoard, ActivePlayer);
 }
 
 ChessGameMode ChessGame::GetMode()
@@ -385,7 +399,7 @@ bool ChessGame::LoadFromFile(const string FileName)
     }
     File.close();
     CurrentMove = Moves->Size()-1;
-    DisplayBoard->Assign(GameBoard);
+    DisplayBoard->Copy(GameBoard);
     if (State == Started)
       State = Paused;
     EndUpdate();
@@ -424,7 +438,7 @@ bool ChessGame::LoadFromImage(const ChessGameImage* Image)
       if (HiByte != 255)
         GameBoard->AddPiece(Position(HIBITS(HiByte), LOBITS(HiByte)), Piece);
     }
-    DisplayBoard->Assign(GameBoard);
+    DisplayBoard->Copy(GameBoard);
     NotifyObservers(PlayerUpdated);
     NotifyObservers(StateChanged);
     NotifyObservers(BoardUpdated);
@@ -452,7 +466,7 @@ bool ChessGame::MakeMove(const Position From, const Position To, const bool Vali
     /* Move the piece */
     Move->CapturedPiece = GameBoard->MovePiece(From, To, Move->EnPassant);
     if (CurrentMove == (int)Moves->Size()-1)
-      DisplayBoard->Assign(GameBoard);
+      DisplayBoard->Copy(GameBoard);
     if (GameBoard->IsKingCheck(!Piece->Color))
       Move->Check = true;
     if (GameBoard->IsKingMate(!Piece->Color))
@@ -576,8 +590,7 @@ void ChessGame::Reset()
   Pos.y = 1;
   for (Pos.x=0; Pos.x < 8; Pos.x++)
     GameBoard->AddPiece(Pos, new ChessPiece(Pawn, White));
-
-  DisplayBoard->Assign(GameBoard);
+  DisplayBoard->Copy(GameBoard);
   NotifyObservers(BoardUpdated);
 }
 
@@ -800,7 +813,7 @@ void ChessGame::TakeBackMove()
         /* Move the piece back to it's origin */
         GameBoard->MoveBackPiece(Move->From,Move->To,Move->CapturedPiece,Move->EnPassant);
         if (CurrentMove == (int)Moves->Size()-1)
-          DisplayBoard->Assign(GameBoard);
+          DisplayBoard->Copy(GameBoard);
         if (Move->CapturedPiece != NULL)
           CaptureCount--;
         /* Restore the piece to a pawn if it was promoted */

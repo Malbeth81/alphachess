@@ -22,12 +22,13 @@
 
 #include <cstrutils.h>
 #include <fstream>
-#include <linkedlist.h>
 #include <math.h>
 #include <observer.h>
 #include <string>
-#include <winutils.h>
+#include <winutils.h> /* for FormatDateTime */
+#include <windows.h> /* for SystemTime */
 #include "chessboard.h"
+#include "chessevaluator.h"
 
 using namespace std;
 
@@ -203,8 +204,10 @@ public:
   void DrawGame();
   void EndTurn();
   ChessPieceColor GetActivePlayer();
+  int GetBoardValue();
   int GetCaptureCount();
   const ChessMove* GetDisplayedMove();
+  ChessEvaluator* GetEvaluator();
   const LinkedList<ChessMove>* GetMoves();
   ChessGameMode GetMode();
   const ChessPiece* GetPiece(const Position Pos);

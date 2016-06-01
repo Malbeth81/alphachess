@@ -27,6 +27,6 @@
 
 using namespace std;
 
-int InputDialog(HINSTANCE Instance, HWND hWindow, const string Title, const string Message, string* Value);
+int InputDialog(HINSTANCE Instance, HWND hWindow, const string Title, const string Message, string* Value, unsigned short MinLength);
 
 #endif

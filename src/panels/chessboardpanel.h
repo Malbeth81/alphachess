@@ -39,6 +39,8 @@ public:
   ChessBoardPanel(HINSTANCE hInstance, HWND hParent, RECT* R);
   ~ChessBoardPanel();
 
+  void ClearPossibleMoves();
+  void DisplayPossibleMove(PossibleChessMove* Move);
   ChessSet* GetChessSet();
   HWND GetHandle();
   bool GetInvertView();
@@ -73,6 +75,7 @@ private:
   ChessGame* Game;
   ChessSet* Set;
   ChessBoardTheme* Theme;
+  LinkedList<PossibleChessMove>* PossibleMoves;
 
   int BorderSize;
   int Height;
@@ -95,6 +98,9 @@ private:
   void DrawChessPieces(HDC DC, int X, int Y);
   void DrawChessPiece(HDC DC, int X, int Y, const ChessPiece* Piece);
   void DrawPaused(HDC DC);
+  void DrawPossibleMoves(HDC DC, int X, int Y);
+  void DrawPossibleMovesValues(HDC DC, int X, int Y);
+  void DrawSelectedChessPiece(HDC DC, int X, int Y);
   Position MakePos(int x, int y);
   /* Event functions */
   void MouseDown(int x, int y);

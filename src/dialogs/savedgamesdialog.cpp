@@ -157,12 +157,11 @@ static INT_PTR __stdcall SavedGamesDialogProc(HWND hDlg, UINT uMsg, WPARAM wPara
         case IDC_LOADFROMFILE:
         {
           string FileName;
-          // TODO obtain GamesDirectory.c_str
-          //if (OpenFileDialog(Handle, Filename, GamesDirectory.c_str(), "pgn", "Portable Game Notation (*.pgn)\0*.pgn\0", 0))
+          if (OpenFileDialog(hDlg, FileName, "%USERPROFILE%\\Saved Games", "pgn", "Portable Game Notation (*.pgn)\0*.pgn\0", 0))
           {
-          //  char* Result = new char[FileName->length()+1];
-          //  strcpy(Result, FileName->c_str());
-          //  PostMessage(hDlg, WM_CLOSE, (WPARAM)Result, 0);
+            char* Result = new char[FileName.length()+1];
+            strcpy(Result, FileName.c_str());
+            PostMessage(hDlg, WM_CLOSE, (WPARAM)Result, 0);
           }
           break;
         }

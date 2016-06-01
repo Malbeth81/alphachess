@@ -19,6 +19,8 @@
 */
 #include "networkgamedialog.h"
 
+static HWND Dialog = NULL;
+
 // WINAPI FUNCTIONS ------------------------------------------------------------
 
 static INT_PTR __stdcall NetworkGameDialogProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
@@ -63,7 +65,7 @@ static INT_PTR __stdcall NetworkGameDialogProc(HWND hDlg, UINT uMsg, WPARAM wPar
           /* Read controls' information */
           char* PlayerName = GetWindowText(GetDlgItem(hDlg,IDC_PLAYERNAME));
           string RoomName;
-          if (strlen(PlayerName) && InputDialog((HINSTANCE)GetWindowLong(hDlg, GWL_HINSTANCE), hDlg, "Start a new game", "Enter the name of the new game room:", &RoomName) && RoomName.length() > 0)
+          if (strlen(PlayerName) && InputDialog((HINSTANCE)GetWindowLong(hDlg, GWL_HINSTANCE), hDlg, "Start a new game", "Enter the name of the new game room:", &RoomName, 3) && RoomName.length() > 0)
           {
             Values->PlayerName = PlayerName;
             Values->RoomId = 0;
@@ -79,7 +81,7 @@ static INT_PTR __stdcall NetworkGameDialogProc(HWND hDlg, UINT uMsg, WPARAM wPar
         {
           /* Update the game room list */
           ListView_DeleteAllItems(GetDlgItem(hDlg, IDC_GAMEROOMLIST));
-          SendMessage(GetParent(hDlg), WM_UPDATEROOMLIST, (WPARAM)hDlg, 0);
+          SendMessage(GetParent(hDlg), WM_UPDATEROOMLIST, 0, 0);
           break;
         }
         case IDOK:
@@ -123,6 +125,7 @@ static INT_PTR __stdcall NetworkGameDialogProc(HWND hDlg, UINT uMsg, WPARAM wPar
     {
       /* Close the dialog */
       EndDialog(hDlg, wParam);
+      Dialog = NULL;
       return TRUE;
     }
     case WM_INITDIALOG:
@@ -146,7 +149,9 @@ static INT_PTR __stdcall NetworkGameDialogProc(HWND hDlg, UINT uMsg, WPARAM wPar
       /* Set initial state */
       SetWindowText(GetDlgItem(hDlg,IDC_PLAYERNAME), Values->PlayerName.c_str());
       PostMessage(GetDlgItem(hDlg,IDC_PLAYERNAME), EM_SETSEL, (WPARAM)-1, 0);
-      SendMessage(GetParent(hDlg), WM_UPDATEROOMLIST, (WPARAM)hDlg, 0);
+      SendMessage(GetParent(hDlg), WM_UPDATEROOMLIST, 0, 0);
+
+      Dialog = hDlg;
       return TRUE;
     }
     case WM_NOTIFY:
@@ -166,6 +171,11 @@ static INT_PTR __stdcall NetworkGameDialogProc(HWND hDlg, UINT uMsg, WPARAM wPar
 }
 
 // Public functions ------------------------------------------------------------
+
+HWND GetNetworkDialogHandle()
+{
+  return Dialog;
+}
 
 int ShowNetworkGameDialog(HINSTANCE Instance, HWND hParent, NetworkGameDialogValues* Values)
 {

@@ -21,13 +21,12 @@
 #define ALPHACHESS_H_
 
 #define _WIN32_WINDOWS 0x0410   // Windows 98 +
-#define _WIN32_IE 0x0300 // IE 3.0 controls
+#define _WIN32_IE 0x0400 // IE 3.0 controls
 #define WINVER 0x0500
 
 #include "gameclient.h"
 #include "resource.h"
 #include "theme.h"
-#include "chess/chessai.h"
 #include "chess/chessgame.h"
 #include "dialogs/aboutdialog.h"
 #include "dialogs/savedgamesdialog.h"
@@ -77,6 +76,7 @@ private:
   HMENU MainMenu;
   HMENU ViewMenu;
 
+  ChessEvaluator* Evaluator;
   ChessGame* Game;
   GameClient* NetworkClient;
 
@@ -130,8 +130,6 @@ private:
   string CurrentTheme;
   bool ShowMoveListIcons;
 
-  HWND SendNetworkRoomsTo;
-
   void ApplyPreferences();
   void CalculateBlackPlayerPosition(RECT* Rect);
   void CalculateCaptureListPosition(RECT* Rect);
@@ -146,6 +144,7 @@ private:
   bool LoadGame();
   void LoadSettings();
   void LoadTheme(string ThemeName);
+  void Notify(const int Event, const void* Param);
   void RotateView(bool Value);
   bool SaveGame();
   void SaveSettings();
@@ -153,7 +152,6 @@ private:
   void ShowHistoryPanel(bool Value);
   void ShowNetworkPanels(bool Value);
   void ShowPlayerPanels(bool Value);
-  void Update(const Observable* object, int Event);
   void UpdateInterface(WPARAM wParam, LPARAM lParam);
   void UpdatePos(int NewLeft, int NewTop);
   void UpdateSize(int NewWidth, int NewHeight);

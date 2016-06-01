@@ -22,6 +22,7 @@
 
 #define _WIN32_IE 0x0400 // IE 4.0 controls
 #include "../resource.h"
+#include <dialogutils.h>
 #include <fstream>
 #include <linkedlist.h>
 #include <map>

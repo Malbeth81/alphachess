@@ -21,6 +21,7 @@
 #define CHESSBOARD_H_
 
 #include <cstrutils.h>
+#include <linkedlist.h>
 
 #ifndef NULL
   #define NULL 0
@@ -35,6 +36,8 @@
   #define min(a,b) (((a) < (b)) ? (a) : (b))
 #endif
 
+typedef unsigned int HashTableKey[8];
+
 enum ChessPieceType {Blank, Pawn, Knight, Bishop, Rook, Queen, King};
 
 enum ChessPieceColor {White, Black};
@@ -42,9 +45,14 @@ enum ChessPieceColor {White, Black};
 inline ChessPieceColor operator!(ChessPieceColor Color)
 {
   if (Color == White)
-    return ChessPieceColor(Black);
+    return Black;
   else
-    return ChessPieceColor(White);
+    return White;
+}
+
+inline int CompareHashKeys(const HashTableKey A, const HashTableKey B)
+{
+  return memcmp(A, B, sizeof(HashTableKey));
 }
 
 class Position
@@ -154,7 +162,33 @@ public:
     return Str;
   }
 
+  short Hash()
+  {
+    return (int)Type | (((int)Color) << 3);
+  }
+
 };
+
+struct PossibleChessMove
+{
+  Position From;
+  Position To;
+  int Value;
+};
+
+
+inline PossibleChessMove* FindBestPossibleMove(LinkedList<PossibleChessMove>* Moves, int x = -1, int y = -1)
+{
+  PossibleChessMove* BestMove = NULL;
+  PossibleChessMove* Ptr = Moves->GetFirst();
+  while (Ptr != NULL)
+  {
+    if ((x == -1 || y == -1 || (Ptr->To.x == x && Ptr->To.y == y)) && (BestMove == NULL || Ptr->Value > BestMove->Value))
+      BestMove = Ptr;
+    Ptr = Moves->GetNext();
+  }
+  return BestMove;
+}
 
 class ChessBoard
 {
@@ -163,17 +197,15 @@ public:
   ~ChessBoard();
 
   bool AddPiece(const Position Pos, ChessPiece* Piece);
-  void Assign(ChessBoard* Board);
-  void Copy(ChessBoard* Board);
+  void Copy(const ChessBoard* Board);
   void Clear();
   Position FindStartingPos(const Position From, const Position To, const ChessPieceType Type, const ChessPieceColor Color);
   ChessPiece* GetPiece(const Position Pos);
-  bool IsAttacked(const Position Pos, const ChessPieceColor Color);
-  bool IsAttacking(const Position Pos);
+  LinkedList<PossibleChessMove>* GetPossibleMoves(const ChessPieceColor Color);
+  int PieceMobility(const Position Pos);
+  void Hash(HashTableKey Key);
   bool IsCastlingAvailable(const ChessPieceColor Color, const bool Small);
   bool IsCastlingPossible(const ChessPieceColor Color, const bool Small);
-  bool IsDefended(const Position Pos, const ChessPieceColor Color);
-  bool IsDefending(const Position Pos);
   bool IsKingCheck(const ChessPieceColor Color);
   bool IsKingMate(const ChessPieceColor Color);
   bool IsMovePossible(const Position From, const Position To);
@@ -182,16 +214,24 @@ public:
   bool IsPawnDoubled(const Position Pos);
   bool IsPawnIsolated(const Position Pos);
   bool IsPawnPassed(const Position Pos);
-  bool IsPieceMovementValid(const ChessPiece* Piece, const Position From, const Position To);
-  bool IsPieceStuck(const Position Pos);
+  bool IsPieceAttacked(const Position Pos, const ChessPieceColor Color);
+  bool IsPieceAttacking(const Position Pos);
+  bool IsPieceDefended(const Position Pos, const ChessPieceColor Color);
+  bool IsPieceDefending(const Position Pos);
+  bool IsPieceMovable(const Position Pos);
+  bool IsPieceMovementValid(const Position From, const Position To);
   bool IsPositionValid(const Position Pos);
   ChessPiece* MovePiece(const Position From, const Position To, bool& EnPassant);
   void MoveBackPiece(const Position From, const Position To, ChessPiece* CapturedPiece, const bool EnPassant = false);
   ChessPiece* RemovePiece(const Position Pos);
+  int Value();
 private:
   ChessPiece* Cases[8][8];
   Position WhiteKingPos;
   Position BlackKingPos;
+  bool WhiteKingCastled;
+  bool BlackKingCastled;
+  LinkedList<Position> MovedPieces;
 };
 
 #endif

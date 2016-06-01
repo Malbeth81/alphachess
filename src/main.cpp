@@ -43,5 +43,7 @@ int __stdcall WinMain(HINSTANCE hInstance, HINSTANCE hPrevInst, LPSTR cmdLine, i
       }
     }
   }
+  /* Clean up */
+  delete alphachess;
   return 0;
 }

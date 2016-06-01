@@ -43,6 +43,7 @@ ChessBoardPanel::ChessBoardPanel(HINSTANCE hInstance, HWND hParent, RECT* R)
   Game = NULL;
   Set = NULL;
   Theme = NULL;
+  PossibleMoves = new LinkedList<PossibleChessMove>;
 
   BorderSize = MinBorderSize;
   Height = R->bottom-R->top;
@@ -91,6 +92,21 @@ ChessBoardPanel::~ChessBoardPanel()
   /* Destroy the window */
   if (Handle != NULL)
     DestroyWindow(Handle);
+}
+
+void ChessBoardPanel::ClearPossibleMoves()
+{
+  while (PossibleMoves->Size() > 0)
+    delete PossibleMoves->Remove();
+}
+
+void ChessBoardPanel::DisplayPossibleMove(PossibleChessMove* Move)
+{
+  if (Move != NULL)
+  {
+    PossibleMoves->Add(Move);
+    Invalidate();
+  }
 }
 
 ChessSet* ChessBoardPanel::GetChessSet()
@@ -240,8 +256,8 @@ void ChessBoardPanel::DrawBoardIndexes(HDC DC, int X, int Y, bool Vertical)
 {
   if (Theme != NULL)
   {
-    string VerticalIndexes = "12345678";
-    string HorizontalIndexes = "ABCDEFGH";
+    char VerticalIndexes[] = "12345678";
+    char HorizontalIndexes[] = "ABCDEFGH";
     SetBkMode(DC,TRANSPARENT);
     SetTextColor(DC, Theme->CoordinatesColor);
     HFONT OldFont = (HFONT)SelectObject(DC,EasyCreateFont(DC,DefaultFontName,PixelsToPoints(DC, BorderSize-4),0));
@@ -251,17 +267,23 @@ void ChessBoardPanel::DrawBoardIndexes(HDC DC, int X, int Y, bool Vertical)
       {
         /* Draw the vertical indexes */
         SIZE Size;
-        const char* Str = VerticalIndexes.substr(InvertView ? i : 7-i, 1).c_str();
+        char* Str = new char[2];
+        Str[0] = VerticalIndexes[i];
+        Str[1] = '\0';
         GetTextExtentPoint32(DC,Str,strlen(Str),&Size);
-        TextOut(DC,X-Size.cx/2,Y+(i)*SquareSize-Size.cy/2,Str,strlen(Str));
+        TextOut(DC,X+(InvertView ? SquareSize*8+(int)(Size.cx*1.5) : 0-Size.cx/2),Y+SquareSize*(InvertView ? i : 7-i)-Size.cy/2,Str,strlen(Str));
+        delete[] Str;
       }
       else
       {
         /* Draw the horizontal indexes */
         SIZE Size;
-        const char* Str = HorizontalIndexes.substr(InvertView ? 7-i : i, 1).c_str();
+        char* Str = new char[2];
+        Str[0] = HorizontalIndexes[i];
+        Str[1] = '\0';
         GetTextExtentPoint32(DC,Str,strlen(Str),&Size);
-        TextOut(DC,X+(i)*SquareSize-Size.cx/2,Y-Size.cy/2,Str,strlen(Str));
+        TextOut(DC,X+SquareSize*(InvertView ? 7-i : i)-Size.cx/2,Y+(InvertView ? 0-Size.cy/2 : SquareSize*8+Size.cy/2),Str,strlen(Str));
+        delete[] Str;
       }
     }
     /* Clean up */
@@ -278,12 +300,12 @@ void ChessBoardPanel::DrawBoardSquares(HDC DC, int X, int Y)
     int HighlightWidth = SquareSize/20;
     const ChessMove* LastMove = Game->GetDisplayedMove();
     /* Draw the board squares */
-    for (int i=0; i < 8; i++)
+    Position Pos;
+    for (Pos.x=0; Pos.x < 8; Pos.x++)
     {
-      for (int j=0; j < 8; j++)
+      for (Pos.y=0; Pos.y < 8; Pos.y++)
       {
-        RECT R = {X+i*SquareSize,Y+j*SquareSize,X+(i+1)*SquareSize,Y+(j+1)*SquareSize};
-        Position Pos = MakePos(i,7-j);
+        RECT R = {X+SquareSize*(InvertView ? 7-Pos.x : Pos.x),Y+SquareSize*(InvertView ? Pos.y : 7-Pos.y),X+SquareSize*(InvertView ? 8-Pos.x : Pos.x+1),Y+SquareSize*(InvertView ? Pos.y+1 : 8-Pos.y)};
         /* Calculate the color for the square */
         if (LastMove != NULL && ShowLastMove && LastMove->To.x == Pos.x && LastMove->To.y == Pos.y)
           Color = Theme->LastMovedColor;
@@ -312,6 +334,12 @@ void ChessBoardPanel::DrawBoardSquares(HDC DC, int X, int Y)
           else
             Color = Theme->CurrentSquareColor;
         }
+        else
+        {
+          PossibleChessMove* BestMove = FindBestPossibleMove(PossibleMoves);
+          if (BestMove != NULL && Pos.x == BestMove->From.x && Pos.y == BestMove->From.y)
+            Color = Theme->CoordinatesColor;
+        }
         /* Draw the highlight */
         InflateRect(&R,-HighlightWidth/2,-HighlightWidth/2);
         if (HighlightWidth % 2 == 0)
@@ -339,17 +367,8 @@ void ChessBoardPanel::DrawChessPieces(HDC DC, int X, int Y)
     /* Draw the chess piece */
     for (int i=0; i < 8; i++)
       for (int j=0; j < 8; j++)
-        if (SelectedSquare.x != i || SelectedSquare.y != 7-j)
-          DrawChessPiece(DC,X+SquareSize*i,Y+SquareSize*j,Game->GetPiece(MakePos(i,7-j)));
-    /* Draw the selected piece */
-    if (SelectedSquare.x >= 0 && SelectedSquare.y >= 0)
-    {
-      POINT Point;
-      GetCursorPos(&Point);
-      RECT Rect;
-      GetWindowRect(Handle, &Rect);
-      DrawChessPiece(DC,Point.x-Rect.left,Point.y-Rect.top,Game->GetPiece(SelectedSquare));
-    }
+        if (SelectedSquare.x != i || SelectedSquare.y != j)
+          DrawChessPiece(DC,X+SquareSize*(InvertView ? 7-i : i),Y+SquareSize*(InvertView ? j : 7-j),Game->GetPiece(Position(i,j)));
     /* Clean up */
     SetBkMode(DC,OPAQUE);
     DeleteObject(SelectObject(DC,OldFont));
@@ -376,19 +395,13 @@ void ChessBoardPanel::DrawChessPiece(HDC DC, int X, int Y, const ChessPiece* Pie
     GetTextExtentPoint32(DC,Set->Letters.substr(Index+6,1).c_str(),1,&Size);
     if ((Piece->Color == White && Theme->WhitePiecesStyle != Outline) || (Piece->Color == Black && Theme->BlackPiecesStyle != Outline))
     {
-      if (Piece->Color == White)
-        SetTextColor(DC, Theme->WhitePiecesColor);
-      else
-        SetTextColor(DC, Theme->BlackPiecesColor);
+      SetTextColor(DC, (Piece->Color == White ? Theme->WhitePiecesColor : Theme->BlackPiecesColor));
       TextOut(DC,X-Size.cx/2,Y-Size.cy/2,Set->Letters.substr(Index+6,1).c_str(),1);
     }
     /* Draw an outline */
     if ((Piece->Color == White && Theme->WhitePiecesStyle != Plain) || (Piece->Color == Black && Theme->BlackPiecesStyle != Plain))
     {
-      if (Piece->Color == White)
-        SetTextColor(DC, Theme->WhitePiecesOutlineColor);
-      else
-        SetTextColor(DC, Theme->BlackPiecesOutlineColor);
+      SetTextColor(DC, (Piece->Color == White ? Theme->WhitePiecesOutlineColor : Theme->BlackPiecesOutlineColor));
       TextOut(DC,X-Size.cx/2,Y-Size.cy/2,Set->Letters.substr(Index,1).c_str(),1);
     }
   }
@@ -421,20 +434,131 @@ void ChessBoardPanel::DrawPaused(HDC DC)
   }
 }
 
-Position ChessBoardPanel::MakePos(int X, int Y)
+void ChessBoardPanel::DrawPossibleMoves(HDC DC, int X, int Y)
 {
-  Position Pos;
-  if (InvertView)
+  if (Game != NULL && Set != NULL && PossibleMoves != NULL)
   {
-    Pos.x = 7-X;
-    Pos.y = 7-Y;
+    /* Set the style */
+    SetBkMode(DC,TRANSPARENT);
+    HPEN OldPen = (HPEN)SelectObject(DC,CreatePen(PS_SOLID,int(SquareSize*.1),Theme->BorderColor));
+    /* Draw the chess move */
+    PossibleChessMove* Move = PossibleMoves->GetFirst();
+    while (Move != NULL)
+    {
+      MoveToEx(DC, X+SquareSize*(InvertView ? 7-Move->From.x : Move->From.x), Y+SquareSize*(InvertView ? Move->From.y : 7-Move->From.y), NULL);
+      LineTo(DC, X+SquareSize*(InvertView ? 7-Move->To.x : Move->To.x), Y+SquareSize*(InvertView ? Move->To.y : 7-Move->To.y));
+      Move = PossibleMoves->GetNext();
+    }
+    DeleteObject(SelectObject(DC,OldPen));
+    OldPen = (HPEN)SelectObject(DC,CreatePen(PS_SOLID,int(SquareSize*.01),Theme->CoordinatesColor));
+    if (SelectedSquare.x >= 0 && SelectedSquare.y >= 0)
+    {
+      /* Highlight the selected piece's moves */
+      PossibleChessMove* Move = PossibleMoves->GetFirst();
+      while (Move != NULL)
+      {
+        if (Move->From.x == SelectedSquare.x && Move->From.y == SelectedSquare.y)
+        {
+          MoveToEx(DC, X+SquareSize*(InvertView ? 7-Move->From.x : Move->From.x), Y+SquareSize*(InvertView ? Move->From.y : 7-Move->From.y), NULL);
+          LineTo(DC, X+SquareSize*(InvertView ? 7-Move->To.x : Move->To.x), Y+SquareSize*(InvertView ? Move->To.y : 7-Move->To.y));
+        }
+        Move = PossibleMoves->GetNext();
+      }
+    }
+    else
+    {
+      /* Highlight the best chess moves */
+      for (int i=0; i < 8; i++)
+        for (int j=0; j < 8; j++)
+        {
+          PossibleChessMove* BestMove = FindBestPossibleMove(PossibleMoves, i, j);
+          if (BestMove != NULL)
+          {
+            MoveToEx(DC, X+SquareSize*(InvertView ? 7-BestMove->From.x : BestMove->From.x), Y+SquareSize*(InvertView ? BestMove->From.y : 7-BestMove->From.y), NULL);
+            LineTo(DC, X+SquareSize*(InvertView ? 7-BestMove->To.x : BestMove->To.x), Y+SquareSize*(InvertView ? BestMove->To.y : 7-BestMove->To.y));
+          }
+        }
+    }
+    /* Clean up */
+    SetBkMode(DC,OPAQUE);
+    DeleteObject(SelectObject(DC,OldPen));
   }
-  else
+}
+
+void ChessBoardPanel::DrawPossibleMovesValues(HDC DC, int X, int Y)
+{
+  if (Game != NULL && Set != NULL && PossibleMoves != NULL)
   {
-    Pos.x = X;
-    Pos.y = Y;
+    /* Set the style */
+    SetBkMode(DC,TRANSPARENT);
+    SetTextColor(DC, Theme->CoordinatesColor);
+    HFONT OldFont = (HFONT)SelectObject(DC,EasyCreateFont(DC,DefaultFontName,PixelsToPoints(DC, BorderSize-4),0));
+    HPEN OldPen = (HPEN)SelectObject(DC,CreatePen(PS_SOLID,int(SquareSize*.1),Theme->BorderColor));
+    if (SelectedSquare.x >= 0 && SelectedSquare.y >= 0)
+    {
+      /* Draw the selected piece's move value */
+      PossibleChessMove* Move = PossibleMoves->GetFirst();
+      while (Move != NULL)
+      {
+        if (Move->From.x == SelectedSquare.x && Move->From.y == SelectedSquare.y)
+        {
+          char* Str = inttostr(Move->Value-(Game->GetActivePlayer() == White ? Game->GetBoardValue() : -Game->GetBoardValue()));
+          BeginPath(DC);
+          TextOut(DC, X+2+SquareSize*(InvertView ? 7-Move->To.x : Move->To.x), Y+SquareSize*(InvertView ? Move->To.y : 7-Move->To.y),Str,strlen(Str));
+          EndPath(DC);
+          StrokePath(DC);
+          TextOut(DC, X+2+SquareSize*(InvertView ? 7-Move->To.x : Move->To.x), Y+SquareSize*(InvertView ? Move->To.y : 7-Move->To.y),Str,strlen(Str));
+          delete[] Str;
+        }
+        Move = PossibleMoves->GetNext();
+      }
+    }
+    else
+    {
+      /* Draw the best chess move's value */
+      for (int i=0; i < 8; i++)
+        for (int j=0; j < 8; j++)
+        {
+          PossibleChessMove* BestMove = FindBestPossibleMove(PossibleMoves, i, j);
+          if (BestMove != NULL)
+          {
+            char* Str = inttostr(BestMove->Value-(Game->GetActivePlayer() == White ? Game->GetBoardValue() : -Game->GetBoardValue()));
+            BeginPath(DC);
+            TextOut(DC, X+2+SquareSize*(InvertView ? 7-i : i), Y+SquareSize*(InvertView ? j : 7-j),Str,strlen(Str));
+            EndPath(DC);
+            StrokePath(DC);
+            TextOut(DC, X+2+SquareSize*(InvertView ? 7-i : i), Y+SquareSize*(InvertView ? j : 7-j),Str,strlen(Str));
+            delete[] Str;
+          }
+        }
+    }
+    /* Clean up */
+    SetBkMode(DC,OPAQUE);
+    DeleteObject(SelectObject(DC,OldFont));
+    DeleteObject(SelectObject(DC,OldPen));
   }
-  return Pos;
+}
+
+void ChessBoardPanel::DrawSelectedChessPiece(HDC DC, int X, int Y)
+{
+  if (Game != NULL && Set != NULL)
+  {
+    /* Set the style */
+    SetBkMode(DC,TRANSPARENT);
+    HFONT OldFont = (HFONT)SelectObject(DC,EasyCreateFont(DC,Set->FontName.c_str(),PixelsToPoints(DC, SquareSize-4),0));
+    /* Draw the selected piece */
+    if (SelectedSquare.x >= 0 && SelectedSquare.y >= 0)
+    {
+      POINT Point;
+      GetCursorPos(&Point);
+      RECT Rect;
+      GetWindowRect(Handle, &Rect);
+      DrawChessPiece(DC,Point.x-Rect.left,Point.y-Rect.top,Game->GetPiece(SelectedSquare));
+    }
+    /* Clean up */
+    SetBkMode(DC,OPAQUE);
+    DeleteObject(SelectObject(DC,OldFont));
+  }
 }
 
 // PRIVATE EVENT FUNCTIONS -----------------------------------------------------
@@ -486,7 +610,12 @@ void ChessBoardPanel::MouseUp(int x, int y)
 void ChessBoardPanel::MouseMove(int x, int y)
 {
   if (x >= BorderSize && x < BorderSize+SquareSize*8 && y >= BorderSize && y < BorderSize+SquareSize*8)
-    HighlightedSquare = MakePos(min((x-BorderSize)/SquareSize,7),7-min((y-BorderSize)/SquareSize,7));
+  {
+    int i = min((x-BorderSize)/SquareSize,7);
+    int j = min((y-BorderSize)/SquareSize,7);
+    HighlightedSquare.x = (InvertView ? 7-i : i);
+    HighlightedSquare.y = (InvertView ? j : 7-j);
+  }
   else
   {
     HighlightedSquare.x = -1;
@@ -531,15 +660,21 @@ void ChessBoardPanel::Paint()
       if (ShowCoordinates)
       {
         DrawBoardIndexes(Buffer,BorderSize/2,BorderSize+SquareSize/2,true); /* Vertical */
-        DrawBoardIndexes(Buffer,BorderSize+SquareSize/2,SquareSize*8+(int)(BorderSize*1.5),false); /* Horizontal */
+        DrawBoardIndexes(Buffer,BorderSize+SquareSize/2,BorderSize/2,false); /* Horizontal */
       }
       /* Draw the board squares */
       DrawBoardSquares(Buffer, BorderSize, BorderSize);
+      /* Draw the possible moves */
+      DrawPossibleMoves(Buffer, BorderSize+SquareSize/2, BorderSize+SquareSize/2);
       /* Draw the chess pieces */
       DrawChessPieces(Buffer, BorderSize+SquareSize/2, BorderSize+SquareSize/2);
+      /* Draw the possible moves values */
+      DrawPossibleMovesValues(Buffer, BorderSize, BorderSize);
+      /* Draw the selected chess piece */
+      DrawSelectedChessPiece(Buffer, BorderSize+SquareSize/2, BorderSize+SquareSize/2);
       if (Paused)
         DrawPaused(Buffer);
-      /* Draw the buffer into the destination DC */
+      /* Copy the buffer into the destination DC */
       BitBlt(DC,0,0,Width,Height,Buffer,0,0,SRCCOPY);
       /* Cleanup */
       DeleteDC(Buffer);

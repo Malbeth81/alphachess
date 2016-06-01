@@ -1,7 +1,8 @@
 Allow to choose multiplayer server
 Add support for other game mode in network games
-Add validation of player name when creating new game.
-Add Show Hint function that highlights all the possible moves (draw line from origin to destination) 
-InputDialog, add parameter to enforce minimum # of char before returning
+Add Show Hint function that highlights all the possible moves (with gradiant for score) for local or vs computer games only
 Add support for private network games, locked with password 
 Load a game while in an online game room loads the game board and time but keep player names (if game is not started only)
+Auto scroll down move list
+
+Implement hastable of chessboard states and return the value if it exists instead of recalculating
