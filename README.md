@@ -8,6 +8,8 @@ play a local game on one computer by exchanging the control between you and your
 play an online game by connecting to the new dedicated server which allows you to join or observe
 any created game or play against the computer's artificial intelligence.
 
+![Alt text](res/AlphaChess4.jpg?raw=true "AlphaChess 4")
+
 Here is a summary of the new features in AlphaChess 4:
 
 - Play against other players online for free or observe ongoing games.
