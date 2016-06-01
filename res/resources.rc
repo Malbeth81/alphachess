@@ -74,6 +74,9 @@ BEGIN
     IDS_GAMEHISTORYLIST_COL7        "Result"
     IDS_PLAYERLIST_COL1             "#"
     IDS_PLAYERLIST_COL2             "Player"
+    
+    /* TOOLTIP STRINGS */
+    IDS_TOOLTIP_PLAYERBUTTON        "Click here to join"
 END
 
 IDR_MAINACCELERATORS ACCELERATORS
@@ -101,8 +104,8 @@ FONT 8,"MS Shell Dlg 2",400,0,1
 BEGIN
     CONTROL         "ID_LOGO",IDC_STATIC,WC_STATIC,SS_BITMAP,0,0,128,160
     LTEXT           "AlphaChess 4",IDC_APPLICATIONNAME,80,4,150,16
-    LTEXT           "v4.0.0",IDC_APPLICATIONVERSION,80,20,150,8
-    LTEXT           "Copyright 2003-2007 Marc-Andre Lamothe.",IDC_COPYRIGHT,80,38,150,8
+    LTEXT           "v4.0.1",IDC_APPLICATIONVERSION,80,20,150,8
+    LTEXT           "Copyright 2003-2011 Marc-André Lamothe.",IDC_COPYRIGHT,80,38,150,8
     LTEXT           "http://www.heresysoft.com",IDC_URL,80,48,150,8
     DEFPUSHBUTTON   "&Close",IDOK,194,61,50,14
 END

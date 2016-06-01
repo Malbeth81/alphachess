@@ -27,7 +27,7 @@
 const int GameClient::Port = 2570;
 const string GameClient::Id = "AlphaChess";
 const int GameClient::SupportedVersion = 400;
-const int GameClient::Version = 400;
+const int GameClient::Version = 401;
 
 // Public functions ------------------------------------------------------------
 
@@ -38,6 +38,7 @@ GameClient::GameClient(HWND hParent)
   Socket = new TCPClientSocket();
   Connected = false;
   InRoom = false;
+  CurrentRoomName = "";
 
   /* Create information for the local player */
   GameHost = NULL;
@@ -107,6 +108,7 @@ bool GameClient::CreateRoom(const string RoomName)
       return false;
     if (!Socket->SendString(RoomName.c_str()))
       return false;
+    CurrentRoomName = RoomName;
     return true;
   }
   else
@@ -169,6 +171,11 @@ unsigned int GameClient::GetObserverCount()
   return Observers.Size();
 }
 
+string GameClient::GetRoomName()
+{
+  return CurrentRoomName;
+}
+
 const PlayerInfo* GameClient::GetWhitePlayer()
 {
   return WhitePlayer;
@@ -184,7 +191,7 @@ bool GameClient::IsInRoom()
   return InRoom;
 }
 
-bool GameClient::JoinRoom(const unsigned int RoomId)
+bool GameClient::JoinRoom(const unsigned int RoomId, const string RoomName)
 {
   if (Connected)
   {
@@ -192,6 +199,7 @@ bool GameClient::JoinRoom(const unsigned int RoomId)
       return false;
     if (!Socket->SendInteger(RoomId))
       return false;
+    CurrentRoomName = RoomName;
     return true;
   }
   else
@@ -216,7 +224,7 @@ bool GameClient::LeaveRoom()
 {
   if (Connected)
   {
-    if (Socket->SendInteger(ND_LeaveRoom))
+    if (!Socket->SendInteger(ND_LeaveRoom))
       return false;
     return true;
   }
@@ -429,9 +437,11 @@ bool GameClient::UpdateRoomList()
 bool GameClient::CloseConnection()
 {
   Socket->Close();
+
   /* Clean up data */
   Connected = false;
   InRoom = false;
+  CurrentRoomName = "";
   if (BlackPlayer != NULL && BlackPlayer != LocalPlayer)
   {
     delete BlackPlayer;
@@ -448,6 +458,9 @@ bool GameClient::CloseConnection()
     if (Player != LocalPlayer)
       delete Player;
   }
+
+  /* Notify the interface */
+  PostMessage(hWindow,WM_UPDATEINTERFACE,MAKEWPARAM(Disconnected,0),0);
   return true;
 }
 
@@ -490,36 +503,39 @@ bool GameClient::ReceiveData()
 {
   while (true)
   {
-    int DataType = Socket->ReceiveInteger();
+    long DataType = Socket->ReceiveInteger();
     switch (DataType)
     {
+      case -1:
+      {
+        return false;
+      }
       case ND_Disconnection:
       {
-        /* Notify the interface */
-        PostMessage(hWindow,WM_UPDATEINTERFACE,MAKEWPARAM(Disconnected,0),0);
         return true;
       }
       case ND_GameData:
       {
         /* Read the size of the incoming data */
-        unsigned long DataSize = (unsigned long)Socket->ReceiveInteger();
-        if (DataSize > 0)
+        long DataSize = (unsigned long)Socket->ReceiveInteger();
+        if (DataSize == -1)
+          return 0;
+        /* Receive the incoming data */
+        unsigned char* Data = new unsigned char[DataSize];
+        memset(Data,sizeof(Data),0);
+        if (Socket->ReceiveBytes(Data, DataSize) == (unsigned long)DataSize)
         {
-          /* Receive the incoming data */
-          unsigned char* Data = new unsigned char[DataSize];
-          memset(Data,sizeof(Data),0);
-          if (Socket->ReceiveBytes(Data, DataSize) == DataSize)
-          {
-            /* Update the interface */
-            PostMessage(hWindow,WM_UPDATEINTERFACE,MAKEWPARAM(GameDataReceived,0),(LPARAM)Data);
-          }
+          /* Update the interface */
+          PostMessage(hWindow,WM_UPDATEINTERFACE,MAKEWPARAM(GameDataReceived,0),(LPARAM)Data);
         }
         break;
       }
       case ND_HostChanged:
       {
         /* Receive the id of the new host */
-        unsigned int PlayerId = Socket->ReceiveInteger();
+        long PlayerId = Socket->ReceiveInteger();
+        if (PlayerId == -1)
+          return false;
 #ifdef DEBUG
         /* Output to log */
         std::cout << "Received Data : Player " << PlayerId << " is now the game host" << std::endl;
@@ -538,8 +554,12 @@ bool GameClient::ReceiveData()
       case ND_Message:
       {
         /* Receive a message from a player */
-        unsigned int PlayerId = Socket->ReceiveInteger();
+        long PlayerId = Socket->ReceiveInteger();
+        if (PlayerId == -1)
+          return false;
         char* Text = Socket->ReceiveString();
+        if (Text == NULL)
+          return false;
 #ifdef DEBUG
         /* Output to log */
         std::cout << "Received Data : Player " << PlayerId << " as sent a message" << std::endl;
@@ -563,6 +583,8 @@ bool GameClient::ReceiveData()
       {
         /* Receive a move from a player */
         long Data = Socket->ReceiveInteger();
+        if (Data == -1)
+          return false;
 #ifdef DEBUG
         /* Output to log */
         std::cout << "Received Data : A player has made a move" << std::endl;
@@ -574,8 +596,12 @@ bool GameClient::ReceiveData()
       case ND_Name:
       {
         /* Receive a remote player's name */
-        unsigned int PlayerId = Socket->ReceiveInteger();
+        long PlayerId = Socket->ReceiveInteger();
+        if (PlayerId == -1)
+          return false;
         char* PlayerName = Socket->ReceiveString();
+        if (PlayerName == NULL)
+          return false;
 #ifdef DEBUG
         /* Output to log */
         std::cout << "Received Data : Player " << PlayerId << " as changed his name to " << PlayerName << std::endl;
@@ -597,6 +623,8 @@ bool GameClient::ReceiveData()
       {
         /* Receive a request from the server */
         NetworkRequestType Request = (NetworkRequestType)Socket->ReceiveInteger();
+        if (Request == -1)
+          return false;
         switch (Request)
         {
           case GameData:
@@ -613,7 +641,9 @@ bool GameClient::ReceiveData()
       case ND_Notification:
       {
         /* Receive a notification from the server */
-        int Notification = Socket->ReceiveInteger();
+        long Notification = Socket->ReceiveInteger();
+        if (Notification == -1)
+          return false;
 #ifdef DEBUG
         /* Output to log */
         std::cout << "Received Data : Notification " << Notification << std::endl;
@@ -670,7 +700,9 @@ bool GameClient::ReceiveData()
       case ND_PlayerId:
       {
         /* Receive the local player's id */
-        unsigned int PlayerId = Socket->ReceiveInteger();
+        long PlayerId = Socket->ReceiveInteger();
+        if (PlayerId == -1)
+          return false;
 #ifdef DEBUG
         /* Output to log */
         std::cout << "Received Data : My player id is " << PlayerId << std::endl;
@@ -686,8 +718,12 @@ bool GameClient::ReceiveData()
       case ND_PlayerJoined:
       {
         /* Receive a remote player's id */
-        unsigned int PlayerId = Socket->ReceiveInteger();
+        long PlayerId = Socket->ReceiveInteger();
+        if (PlayerId == -1)
+          return false;
         char* PlayerName = Socket->ReceiveString();
+        if (PlayerName == NULL)
+          return false;
 #ifdef DEBUG
         /* Output to log */
         std::cout << "Received Data : Player " << PlayerId << " as joined" << std::endl;
@@ -711,21 +747,23 @@ bool GameClient::ReceiveData()
       case ND_PlayerLeft:
       {
         /* Receive a remote player's id */
-        unsigned int PlayerId = Socket->ReceiveInteger();
+        long PlayerId = Socket->ReceiveInteger();
+        if (PlayerId == -1)
+          return false;
 #ifdef DEBUG
         /* Output to log */
         std::cout << "Received Data : Player " << PlayerId << " has left" << std::endl;
 #endif
         char* PlayerName = NULL;
         /* Remove the player */
-        if (WhitePlayer != NULL && WhitePlayer->PlayerId == PlayerId)
+        if (WhitePlayer != NULL && WhitePlayer->PlayerId == (unsigned int)PlayerId)
         {
           PlayerName = new char[sizeof(WhitePlayer->Name)];
           strcpy(PlayerName,WhitePlayer->Name.c_str());
           delete WhitePlayer;
           WhitePlayer = NULL;
         }
-        else if (BlackPlayer != NULL && BlackPlayer->PlayerId == PlayerId)
+        else if (BlackPlayer != NULL && BlackPlayer->PlayerId == (unsigned int)PlayerId)
         {
           PlayerName = new char[sizeof(BlackPlayer->Name)];
           strcpy(PlayerName,BlackPlayer->Name.c_str());
@@ -735,7 +773,7 @@ bool GameClient::ReceiveData()
         else
         {
           PlayerInfo* Observer = Observers.GetFirst();
-          while (Observer != NULL && Observer->PlayerId != PlayerId)
+          while (Observer != NULL && Observer->PlayerId != (unsigned int)PlayerId)
             Observer = Observers.GetNext();
           if (Observer != NULL)
           {
@@ -752,7 +790,9 @@ bool GameClient::ReceiveData()
       case ND_PlayerReady:
       {
         /* Receive a remote player's id */
-        unsigned int PlayerId = Socket->ReceiveInteger();
+        long PlayerId = Socket->ReceiveInteger();
+        if (PlayerId == -1)
+          return false;
 #ifdef DEBUG
         /* Output to log */
         std::cout << "Received Data : Player " << PlayerId << " is ready" << std::endl;
@@ -772,6 +812,8 @@ bool GameClient::ReceiveData()
       {
         /* Receive a request from a remote player */
         PlayerRequestType Request = (PlayerRequestType)Socket->ReceiveInteger();
+        if (Request == -1)
+          return false;
         switch (Request)
         {
           case DrawRequest:
@@ -794,14 +836,20 @@ bool GameClient::ReceiveData()
             PostMessage(hWindow,WM_UPDATEINTERFACE,MAKEWPARAM(RequestReceived,Request),0);
             break;
           }
+          default:
+            break;
         }
         break;
       }
       case ND_PlayerTime:
       {
         /* Receive the server's time */
-        unsigned int PlayerId = Socket->ReceiveInteger();
-        unsigned long Time = Socket->ReceiveInteger();
+        long PlayerId = Socket->ReceiveInteger();
+        if (PlayerId == -1)
+          return false;
+        long Time = Socket->ReceiveInteger();
+        if (Time == -1)
+          return false;
         /* Output to log */
 #ifdef DEBUG
         std::cout << "Received Data : Player " << PlayerId << " time changed to " << Time << std::endl;
@@ -820,8 +868,12 @@ bool GameClient::ReceiveData()
       case ND_PlayerType:
       {
         /* Receive a player's id and type */
-        unsigned int PlayerId = Socket->ReceiveInteger();
+        long PlayerId = Socket->ReceiveInteger();
+        if (PlayerId == -1)
+          return false;
         PlayerType Type = (PlayerType)Socket->ReceiveInteger();
+        if (Type == -1)
+          return false;
         /* Output to log */
 #ifdef DEBUG
         std::cout << "Received Data : Player " << PlayerId << " has changes his type to " << Type << std::endl;
@@ -830,23 +882,13 @@ bool GameClient::ReceiveData()
         PlayerInfo* Player = FindPlayer(PlayerId);
         if (Player != NULL)
         {
-          PlayerType OldType;
           /* Change the player's type */
           if (Player == WhitePlayer)
-          {
             WhitePlayer = NULL;
-            OldType = WhitePlayerType;
-          }
           else if (Player == BlackPlayer)
-          {
             BlackPlayer = NULL;
-            OldType = BlackPlayerType;
-          }
           else
-          {
             Observers.Remove(Player);
-            OldType = ObserverType;
-          }
           if (Type == BlackPlayerType)
             BlackPlayer = Player;
           else if (Type == WhitePlayerType)
@@ -855,7 +897,7 @@ bool GameClient::ReceiveData()
             Observers.Add(Player);
           Player->Ready = false;
           /* Notify the interface to update the player */
-          PostMessage(hWindow,WM_UPDATEINTERFACE,MAKEWPARAM(PlayerTypeChanged,OldType),(LPARAM)Player);
+          PostMessage(hWindow,WM_UPDATEINTERFACE,MAKEWPARAM(PlayerTypeChanged,0),(LPARAM)Player);
           /* Notify the interface to update the player */
           PostMessage(hWindow,WM_UPDATEINTERFACE,MAKEWPARAM(PlayerStateChanged,0),(LPARAM)Player);
         }
@@ -864,7 +906,9 @@ bool GameClient::ReceiveData()
       case ND_PromoteTo:
       {
         /* Receive a chess piece type */
-        int Type = Socket->ReceiveInteger();
+        long Type = Socket->ReceiveInteger();
+        if (Type == -1)
+          return false;
         /* Notify the interface to promote the last played piece */
         PostMessage(hWindow,WM_UPDATEINTERFACE,MAKEWPARAM(PromotionReceived,0),(LPARAM)Type);
         break;
@@ -872,15 +916,23 @@ bool GameClient::ReceiveData()
       case ND_RoomInfo:
       {
         /* Receive information on one of the server's room */
-        int RoomId = Socket->ReceiveInteger();
+        long RoomId = Socket->ReceiveInteger();
+        if (RoomId == -1)
+          return false;
         char* RoomName = Socket->ReceiveString();
-        bool RoomLocked = (bool)Socket->ReceiveInteger();
-        int PlayerCount = Socket->ReceiveInteger();
+        if (RoomName == NULL)
+          return false;
+        long RoomLocked = Socket->ReceiveInteger();
+        if (RoomLocked == -1)
+          return false;
+        long PlayerCount = Socket->ReceiveInteger();
+        if (PlayerCount == -1)
+          return false;
         /* Store information on the room */
         RoomInfo* Room = new RoomInfo;
         Room->Name = RoomName;
         Room->RoomId = RoomId;
-        Room->Locked = RoomLocked;
+        Room->Locked = (bool)RoomLocked;
         Room->PlayerCount = PlayerCount;
         /* Notify the interface to update the room list */
         PostMessage(hWindow,WM_UPDATEINTERFACE,MAKEWPARAM(RoomInfoReceived,0),(LPARAM)Room);
@@ -888,8 +940,6 @@ bool GameClient::ReceiveData()
         break;
       }
       default:
-        /* Notify the interface */
-        PostMessage(hWindow,WM_UPDATEINTERFACE,MAKEWPARAM(Disconnected,0),0);
         return false;
     }
   }

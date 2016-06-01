@@ -84,10 +84,10 @@ void ChessGame::Clear()
   Mode = FreeTime;
   State = Undefined;
   TimePerMove = 0;
-  WhitePlayer.Name = "";
+  //WhitePlayer.Name = "";
   WhitePlayer.MoveTime = 0;
   WhitePlayer.TotalTime = 0;
-  BlackPlayer.Name = "";
+  //BlackPlayer.Name = "";
   BlackPlayer.MoveTime = 0;
   BlackPlayer.TotalTime = 0;
 

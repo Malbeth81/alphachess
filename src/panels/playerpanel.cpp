@@ -36,6 +36,7 @@ PlayerPanel::PlayerPanel(HINSTANCE hInstance, HWND hParent, RECT* R, ChessPieceC
   Color = NewColor;
   Set = NULL;
   IsReady = false;
+  TooltipVisible = false;
   Height = R->bottom-R->top;
   Width = R->right-R->left;
 
@@ -68,6 +69,19 @@ PlayerPanel::PlayerPanel(HINSTANCE hInstance, HWND hParent, RECT* R, ChessPieceC
       PlayerButton = CreateWindowEx(0,"BUTTON",NULL,WS_CHILD|WS_CLIPSIBLINGS|WS_TABSTOP|WS_VISIBLE,
           0,0,0,0,Handle,NULL,hInstance,NULL);
       OldPlayerButtonProc = (WNDPROC)SetWindowLong(PlayerButton,GWL_WNDPROC,(LONG)PlayerButtonProc);
+
+      ButtonTip = CreateWindowEx(0,TOOLTIPS_CLASS,NULL,WS_POPUP|TTS_NOPREFIX,
+          CW_USEDEFAULT,CW_USEDEFAULT,CW_USEDEFAULT,CW_USEDEFAULT,Handle,NULL,hInstance,NULL);
+
+      TOOLINFO toolInfo;
+      toolInfo.cbSize = sizeof(toolInfo);
+      toolInfo.hwnd = Handle;
+      toolInfo.uFlags = TTF_IDISHWND | TTF_ABSOLUTE | TTF_TRACK;
+      toolInfo.uId = (UINT_PTR)PlayerButton;
+      toolInfo.hinst = hInstance;
+      toolInfo.lpszText = new char[MAX_PATH];
+      LoadString(hInstance, IDS_TOOLTIP_PLAYERBUTTON, toolInfo.lpszText, MAX_PATH);
+      SendMessage(ButtonTip, TTM_ADDTOOL, 0, (LPARAM)&toolInfo);
 
       /* Initialize child window placement */
       ApplyThemeToCustomButton(Handle);
@@ -132,6 +146,11 @@ void PlayerPanel::Invalidate()
     InvalidateRect(PlayerButton, NULL, FALSE);
 }
 
+bool PlayerPanel::IsTooltipVisible()
+{
+  return TooltipVisible;
+}
+
 void PlayerPanel::SetChessSet(ChessSet* NewSet)
 {
   Set = NewSet;
@@ -147,6 +166,24 @@ void PlayerPanel::SetGame(ChessGame* NewGame)
 void PlayerPanel::SetReady(bool Value)
 {
   IsReady = Value;
+}
+
+void PlayerPanel::ShowTooltip(bool Value)
+{
+  TOOLINFO toolInfo;
+  toolInfo.cbSize = sizeof(toolInfo);
+  toolInfo.hwnd = Handle;
+  toolInfo.uFlags = TTF_IDISHWND;
+  toolInfo.uId = (UINT_PTR)PlayerButton;
+  toolInfo.hinst = (HINSTANCE)GetWindowLong(Handle, GWL_HINSTANCE);
+  toolInfo.lpszText = new char[MAX_PATH];
+  LoadString((HINSTANCE)GetWindowLong(Handle, GWL_HINSTANCE), IDS_TOOLTIP_PLAYERBUTTON, toolInfo.lpszText, MAX_PATH);
+
+  RECT R;
+  GetWindowRect(PlayerButton, &R);
+  SendMessage(ButtonTip, TTM_TRACKPOSITION, 0, MAKELONG(R.left,R.bottom));
+  SendMessage(ButtonTip, TTM_TRACKACTIVATE, Value, (LPARAM)&toolInfo);
+  TooltipVisible = Value;
 }
 
 // PRIVATE GUI FUNCTIONS -------------------------------------------------------

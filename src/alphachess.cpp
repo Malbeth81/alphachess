@@ -406,8 +406,8 @@ void AlphaChess::LoadSettings()
   strcpy(Section, "Window");
   Left = GetPrivateProfileInt(Section,"Left",20,ConfigFileName.c_str());
   Top = GetPrivateProfileInt(Section,"Top",20,ConfigFileName.c_str());
-  Width = GetPrivateProfileInt(Section,"Width",634,ConfigFileName.c_str());
-  Height = GetPrivateProfileInt(Section,"Height",514,ConfigFileName.c_str());
+  Width = GetPrivateProfileInt(Section,"Width",689,ConfigFileName.c_str());
+  Height = GetPrivateProfileInt(Section,"Height",546,ConfigFileName.c_str());
   strcpy(Section, "Game");
   BlackPlayerName = GetPrivateProfileString(Section,"BlackPlayerName","",ConfigFileName);
   WhitePlayerName = GetPrivateProfileString(Section,"WhitePlayerName","",ConfigFileName);
@@ -930,25 +930,17 @@ void AlphaChess::UpdateInterface(WPARAM wParam, LPARAM lParam)
         {
           /* Join the room */
           NetworkClient->SetPlayerName(NetworkPlayerName);
-          if (NetworkClient->JoinRoom(Values->RoomId))
-          {
-            hRoomPanel->SetRoomName(Values->RoomName);
+          if (NetworkClient->JoinRoom(Values->RoomId, Values->RoomName))
             SetCursor(LoadCursor(NULL,IDC_WAIT));
-          }
         }
         else
         {
           /* Create a new room */
           NetworkClient->SetPlayerName(NetworkPlayerName);
           if (NetworkClient->CreateRoom(Values->RoomName))
-          {
-            hRoomPanel->SetRoomName(Values->RoomName);
             SetCursor(LoadCursor(NULL,IDC_WAIT));
-          }
         }
       }
-      else
-        NetworkClient->Disconnect();
       delete Values;
       break;
     }
@@ -1038,11 +1030,17 @@ void AlphaChess::UpdateInterface(WPARAM wParam, LPARAM lParam)
           hWhitePlayerPanel->EnableJoinButton(true);
           hWhitePlayerPanel->EnableLeaveButton(false);
           hWhitePlayerPanel->EnableReadyButton(false);
+          hWhitePlayerPanel->ShowTooltip(true);
           hBlackPlayerPanel->EnableJoinButton(true);
           hBlackPlayerPanel->EnableLeaveButton(false);
           hBlackPlayerPanel->EnableReadyButton(false);
+          hBlackPlayerPanel->ShowTooltip(true);
           hRoomPanel->EnableLeaveRoomButton(true);
           hRoomPanel->EnableKickPlayerButton(false);
+
+          /* Update the room list */
+          hRoomPanel->SetRoomName(NetworkClient->GetRoomName());
+          hRoomPanel->Invalidate();
 
           /* Add a message in the chat panel */
           hChatPanel->AddLine("You have joined the room: " + hRoomPanel->GetRoomName());
@@ -1055,9 +1053,11 @@ void AlphaChess::UpdateInterface(WPARAM wParam, LPARAM lParam)
           hWhitePlayerPanel->EnableJoinButton(false);
           hWhitePlayerPanel->EnableLeaveButton(false);
           hWhitePlayerPanel->EnableReadyButton(false);
+          hWhitePlayerPanel->ShowTooltip(false);
           hBlackPlayerPanel->EnableJoinButton(false);
           hBlackPlayerPanel->EnableLeaveButton(false);
           hBlackPlayerPanel->EnableReadyButton(false);
+          hBlackPlayerPanel->ShowTooltip(false);
           hRoomPanel->EnableLeaveRoomButton(false);
           hRoomPanel->EnableKickPlayerButton(false);
 
@@ -1067,9 +1067,6 @@ void AlphaChess::UpdateInterface(WPARAM wParam, LPARAM lParam)
           /* Update the room list */
           hRoomPanel->SetRoomName("");
           hRoomPanel->Invalidate();
-
-          /* Go back to room selection */
-          UpdateInterface(MAKEWPARAM(ConnectionSucceeded,0), 0);
           break;
         }
         case GameStarted:
@@ -1152,6 +1149,7 @@ void AlphaChess::UpdateInterface(WPARAM wParam, LPARAM lParam)
         hBlackPlayerPanel->EnableJoinButton(true);
         hBlackPlayerPanel->EnableLeaveButton(false);
         hBlackPlayerPanel->EnableReadyButton(false);
+        hBlackPlayerPanel->ShowTooltip(true);
       }
       if (NetworkClient->GetWhitePlayer() == NULL)
       {
@@ -1159,6 +1157,7 @@ void AlphaChess::UpdateInterface(WPARAM wParam, LPARAM lParam)
         hWhitePlayerPanel->EnableJoinButton(true);
         hBlackPlayerPanel->EnableLeaveButton(false);
         hWhitePlayerPanel->EnableReadyButton(false);
+        hWhitePlayerPanel->ShowTooltip(true);
       }
 
       /* Update the room information */
@@ -1185,6 +1184,7 @@ void AlphaChess::UpdateInterface(WPARAM wParam, LPARAM lParam)
     }
     case PlayerStateChanged:
     {
+      /* Update player panels */
       hBlackPlayerPanel->Invalidate();
       hWhitePlayerPanel->Invalidate();
 
@@ -1207,40 +1207,42 @@ void AlphaChess::UpdateInterface(WPARAM wParam, LPARAM lParam)
     }
     case PlayerTypeChanged:
     {
-      PlayerType OldType = (PlayerType)HIWORD(wParam);
       PlayerInfo* Player = (PlayerInfo*)lParam;
 
-      /* Clear player name */
-      if (OldType == BlackPlayerType)
+      /* Update the white player */
+      if (NetworkClient->GetBlackPlayer() == NULL)
       {
         Game->SetPlayerName(Black,"");
         hBlackPlayerPanel->EnableJoinButton(true);
         hBlackPlayerPanel->EnableLeaveButton(false);
         hBlackPlayerPanel->EnableReadyButton(false);
+        hBlackPlayerPanel->ShowTooltip(true);
       }
-      else if (OldType == WhitePlayerType)
+      else if (Player == NetworkClient->GetBlackPlayer())
+      {
+        Game->SetPlayerName(Black,Player->Name);
+        hBlackPlayerPanel->EnableJoinButton(false);
+        hBlackPlayerPanel->EnableLeaveButton(Player == NetworkClient->GetLocalPlayer());
+        hBlackPlayerPanel->ShowTooltip(false);
+        hWhitePlayerPanel->ShowTooltip(Player != NetworkClient->GetLocalPlayer());
+      }
+
+      /* Update the black player */
+      if (NetworkClient->GetWhitePlayer() == NULL)
       {
         Game->SetPlayerName(White,"");
         hWhitePlayerPanel->EnableJoinButton(true);
         hWhitePlayerPanel->EnableLeaveButton(false);
         hWhitePlayerPanel->EnableReadyButton(false);
-      }
-
-      hBlackPlayerPanel->Invalidate();
-      hWhitePlayerPanel->Invalidate();
-
-      /* Update the player name */
-      if (Player == NetworkClient->GetBlackPlayer())
-      {
-        Game->SetPlayerName(Black,Player->Name);
-        hBlackPlayerPanel->EnableJoinButton(false);
-        hBlackPlayerPanel->EnableLeaveButton(Player == NetworkClient->GetLocalPlayer());
+        hWhitePlayerPanel->ShowTooltip(true);
       }
       else if (Player == NetworkClient->GetWhitePlayer())
       {
         Game->SetPlayerName(White,Player->Name);
         hWhitePlayerPanel->EnableJoinButton(false);
         hWhitePlayerPanel->EnableLeaveButton(Player == NetworkClient->GetLocalPlayer());
+        hWhitePlayerPanel->ShowTooltip(false);
+        hBlackPlayerPanel->ShowTooltip(Player != NetworkClient->GetLocalPlayer());
       }
 
       /* Update the player list */
@@ -1496,7 +1498,7 @@ LRESULT __stdcall AlphaChess::WindowProc(HWND hWnd, UINT Msg, WPARAM wParam, LPA
       if (Window != NULL)
       {
         /* Close confirmation */
-        if (Window->Game->GetState() == Started || Window->Game->GetState() == Paused)
+        if ((Window->Game->GetState() == Started || Window->Game->GetState() == Paused) && (Window->NetworkClient->GetLocalPlayer() == Window->NetworkClient->GetBlackPlayer() || Window->NetworkClient->GetLocalPlayer() == Window->NetworkClient->GetWhitePlayer()))
         {
           Window->Game->PauseGame();
           int Result = MessageBox(hWnd,"You have a game in progress, do you want to save it before exiting AlphaChess?","Exit AlphaChess",MB_YESNOCANCEL|MB_ICONQUESTION);
@@ -1895,8 +1897,10 @@ LRESULT __stdcall AlphaChess::WindowProc(HWND hWnd, UINT Msg, WPARAM wParam, LPA
       AlphaChess* Window = (AlphaChess*)GetWindowLong(hWnd, GWL_USERDATA);
       if (Window != NULL)
       {
-        if (MessageBox(hWnd,"Are you sure that you wish to leave the game?", "Leave game", MB_YESNO|MB_ICONQUESTION) == IDYES)
-          Window->NetworkClient->LeaveRoom();
+        if ((Window->Game->GetState() != Started && Window->Game->GetState() != Paused && Window->NetworkClient->GetLocalPlayer() != Window->NetworkClient->GetBlackPlayer() && Window->NetworkClient->GetLocalPlayer() != Window->NetworkClient->GetWhitePlayer())
+          || MessageBox(hWnd,"Are you sure that you wish to leave the game?", "Leave game", MB_YESNO|MB_ICONQUESTION) == IDYES)
+          if (Window->NetworkClient->LeaveRoom())
+            Window->UpdateInterface(MAKEWPARAM(ConnectionSucceeded,0), 0);
       }
       return 0;
     }
@@ -1938,6 +1942,13 @@ LRESULT __stdcall AlphaChess::WindowProc(HWND hWnd, UINT Msg, WPARAM wParam, LPA
       if (Window != NULL)
       {
         RECT* R = (RECT*)lParam;
+
+        /* Move visible tooltips */
+        if (Window->hBlackPlayerPanel->IsTooltipVisible())
+          Window->hBlackPlayerPanel->ShowTooltip(true);
+        if (Window->hWhitePlayerPanel->IsTooltipVisible())
+          Window->hWhitePlayerPanel->ShowTooltip(true);
+
         WINDOWPLACEMENT wd;
         wd.length = sizeof(WINDOWPLACEMENT);
         if (GetWindowPlacement(hWnd, &wd) && (Window->AlwaysVisible || wd.showCmd == SW_SHOWMAXIMIZED))

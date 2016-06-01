@@ -312,6 +312,7 @@ LRESULT __stdcall ChatPanel::PanelWindowProc(HWND hWnd, UINT Msg, WPARAM wParam,
         {
           char* Str = GetWindowText(Panel->Input);
           SendMessage(GetParent(hWnd), WM_SENDMESSAGEBUTTONCLICKED, (WPARAM)Str, 0);
+          SetWindowText(Panel->Input, NULL);
           delete[] Str;
         }
       }
@@ -398,6 +399,14 @@ LRESULT __stdcall ChatPanel::InputFieldProc(HWND hWnd, UINT Msg, WPARAM wParam, 
 {
   switch (Msg)
   {
+    case WM_CHAR:
+    {
+      if (wParam == 13)
+      {
+        return 0;
+      }
+      break;
+    }
     case WM_KEYUP:
     {
       if (wParam == VK_RETURN)

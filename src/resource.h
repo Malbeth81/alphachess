@@ -74,6 +74,9 @@
 #define IDS_PLAYERLIST_COL1             2020
 #define IDS_PLAYERLIST_COL2             2021
 
+/* Tooltip identifiers */
+#define IDS_TOOLTIP_PLAYERBUTTON        9001
+
 /* Dialog item identifiers */
 #define IDD_ABOUT                       10000
 #define IDC_APPLICATIONNAME             10001

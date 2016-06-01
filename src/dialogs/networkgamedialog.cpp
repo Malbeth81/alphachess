@@ -64,16 +64,21 @@ static INT_PTR __stdcall NetworkGameDialogProc(HWND hDlg, UINT uMsg, WPARAM wPar
 
           /* Read controls' information */
           char* PlayerName = GetWindowText(GetDlgItem(hDlg,IDC_PLAYERNAME));
-          string RoomName;
-          if (strlen(PlayerName) && InputDialog((HINSTANCE)GetWindowLong(hDlg, GWL_HINSTANCE), hDlg, "Start a new game", "Enter the name of the new game room:", &RoomName, 3) && RoomName.length() > 0)
+          if (strlen(PlayerName))
           {
-            Values->PlayerName = PlayerName;
-            Values->RoomId = 0;
-            Values->RoomName = RoomName;
+            string RoomName;
+            if (InputDialog((HINSTANCE)GetWindowLong(hDlg, GWL_HINSTANCE), hDlg, "Start a new game", "Enter the name of the new game room:", &RoomName, 3) && RoomName.length() > 0)
+            {
+              Values->PlayerName = PlayerName;
+              Values->RoomId = 0;
+              Values->RoomName = RoomName;
 
-            /* Close dialog */
-            PostMessage(hDlg,WM_CLOSE,1,0);
+              /* Close dialog */
+              PostMessage(hDlg,WM_CLOSE,1,0);
+            }
           }
+          else
+            MessageBox(hDlg, "Please enter your player name.", "New online game", MB_OK|MB_ICONERROR);
           delete[] PlayerName;
           break;
         }
@@ -88,29 +93,35 @@ static INT_PTR __stdcall NetworkGameDialogProc(HWND hDlg, UINT uMsg, WPARAM wPar
         {
           NetworkGameDialogValues* Values = (NetworkGameDialogValues*)GetWindowLong(hDlg, GWL_USERDATA);
 
-          /* Get index of selected room */
-          int Index = SendMessage(GetDlgItem(hDlg, IDC_GAMEROOMLIST),LVM_GETNEXTITEM,(WPARAM)-1,LVNI_FOCUSED);
-          if (Index >= 0)
+          /* Read controls' information */
+          char* PlayerName = GetWindowText(GetDlgItem(hDlg,IDC_PLAYERNAME));
+          if (strlen(PlayerName))
           {
-            /* Read controls' information */
-            char* PlayerName = GetWindowText(GetDlgItem(hDlg,IDC_PLAYERNAME));
-            char* RoomName = new char[60];
-            ListView_GetItemText(GetDlgItem(hDlg, IDC_GAMEROOMLIST),Index,0,RoomName,60);
-            unsigned int RoomID = atoi(RoomName);
-            ListView_GetItemText(GetDlgItem(hDlg, IDC_GAMEROOMLIST),Index,1,RoomName,60);
-            if (strlen(PlayerName) && RoomID > 0)
+            /* Get index of selected room */
+            int Index = SendMessage(GetDlgItem(hDlg, IDC_GAMEROOMLIST),LVM_GETNEXTITEM,(WPARAM)-1,LVNI_FOCUSED);
+            if (Index >= 0)
             {
-              Values->PlayerName = PlayerName;
-              Values->RoomId = RoomID;
-              Values->RoomName = RoomName;
+              char* RoomName = new char[60];
+              ListView_GetItemText(GetDlgItem(hDlg, IDC_GAMEROOMLIST),Index,0,RoomName,60);
+              unsigned int RoomID = atoi(RoomName);
+              ListView_GetItemText(GetDlgItem(hDlg, IDC_GAMEROOMLIST),Index,1,RoomName,60);
+              if (strlen(PlayerName) && RoomID > 0)
+              {
+                Values->PlayerName = PlayerName;
+                Values->RoomId = RoomID;
+                Values->RoomName = RoomName;
 
-              /* Close dialog */
-              PostMessage(hDlg,WM_CLOSE,1,0);
+                /* Close dialog */
+                PostMessage(hDlg,WM_CLOSE,1,0);
+              }
+              delete[] RoomName;
             }
-            delete[] PlayerName;
-            delete[] RoomName;
+            else
+              MessageBox(hDlg, "Please select a game room from the list.", "New online game", MB_OK|MB_ICONERROR);
           }
-          PostMessage(hDlg, WM_CLOSE, 1, 0);
+          else
+            MessageBox(hDlg, "Please enter your player name.", "New online game", MB_OK|MB_ICONERROR);
+          delete[] PlayerName;
           break;
         }
         case IDCANCEL:

@@ -37,9 +37,11 @@ public:
   void EnableReadyButton(const bool Value);
   HWND GetHandle();
   void Invalidate();
+  bool IsTooltipVisible();
   void SetChessSet(ChessSet* NewSet);
   void SetGame(ChessGame* NewGame);
   void SetReady(bool Value);
+  void ShowTooltip(bool Value);
 private:
   static ATOM ClassAtom;
   static WNDPROC OldPlayerButtonProc;
@@ -47,11 +49,13 @@ private:
   HWND Handle;
   HWND PlayerButton;
   HMENU PlayerMenu;
+  HWND ButtonTip;
 
   ChessGame* Game;
   ChessPieceColor Color;
   ChessSet* Set;
   bool IsReady;
+  bool TooltipVisible;
   int Height;
   int Width;
 

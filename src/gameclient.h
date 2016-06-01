@@ -20,7 +20,7 @@
 #ifndef GAMECLIENT_H_
 #define GAMECLIENT_H_
 
-#include "../../alphachessserver/src/gamedata.h"
+#include "../../alphachessserver/src/gameserverdata.h"
 #include "system.h"
 #include <linkedlist.h>
 #include <string>
@@ -86,10 +86,11 @@ public:
   const PlayerInfo* GetLocalPlayer();
   const PlayerInfo* GetObserver(const int Index);
   unsigned int GetObserverCount();
+  string GetRoomName();
   const PlayerInfo* GetWhitePlayer();
   bool IsConnected();
   bool IsInRoom();
-  bool JoinRoom(const unsigned int RoomId);
+  bool JoinRoom(const unsigned int RoomId, const string RoomName);
   bool KickPlayer(const unsigned int PlayerId);
   bool LeaveRoom();
   bool MakeMove(const short FromX, const short FromY, const short ToX, const short ToY);
@@ -113,6 +114,7 @@ protected:
   TCPClientSocket* Socket;
   bool Connected;
   bool InRoom;
+  string CurrentRoomName;
 
   PlayerInfo* GameHost;
   PlayerInfo* LocalPlayer;
