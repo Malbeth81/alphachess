@@ -1,7 +1,7 @@
 /*
 * AboutDialog.h - A dialog showing information about the application.
 *
-* Copyright (C) 2007-2009 Marc-André Lamothe.
+* Copyright (C) 2007-2010 Marc-André Lamothe.
 *
 * This program is free software; you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -20,9 +20,10 @@
 #ifndef ABOUTDIALOG_H_
 #define ABOUTDIALOG_H_
 
+#include "../resource.h"
 #include <winutils.h>
 #include <windows.h>
 
-void ShowAboutDialog(HWND hWindow);
+void ShowAboutDialog(HINSTANCE Instance, HWND hWindow);
 
 #endif

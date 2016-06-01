@@ -23,111 +23,236 @@
 #include <cstrutils.h>
 #include <fstream>
 #include <linkedlist.h>
+#include <math.h>
+#include <observer.h>
 #include <string>
+#include <winutils.h>
 #include "chessboard.h"
 
 using namespace std;
 
-enum {Invalid=1, Captured=2, CapturedEnPassant=4, Promoted=8, Checked=16, Mated=32};
+enum ChessGameMode {FreeTime, MoveTime};
 
-enum GameMode {GameTime, MoveTime, FreeTime};
+enum ChessGameState {Undefined, Started, Paused, EndedInDraw, EndedInForfeit, EndedInStaleMate, EndedInCheckMate, EndedInTimeout, Postponed};
 
-enum GameState {Undefined, Created, Started, Paused, EndedInDraw, EndedInForfeit, EndedInStaleMate, EndedInCheckMate, EndedInTimeout, Postponed};
+enum ChessGameEvent {BoardUpdated, PiecePromoted, PlayerUpdated, StateChanged, TurnEnded};
 
 class ChessMove
 {
 public:
-  ChessPieceType CapturedPiece;
-  ChessPieceType MovedPiece;
-  ChessPieceType PromotedTo;
   Position From;
   Position To;
-  int Result;
+  ChessPieceType Piece;
+  ChessPieceType PromotedTo;
+  ChessPiece* CapturedPiece;
+  bool EnPassant;
+  bool Check;
+  bool Mate;
 
-  char* ToAlgebraicNotation()
+  ChessMove::ChessMove()
   {
-    char* Value = new char[16];
-    if (MovedPiece == King && abs(To.x-From.x) == 2)
+  }
+
+  static ChessMove ParseAlgebraicString(string Str, const ChessPieceColor ActivePlayer)
+  {
+    ChessMove Move;
+    Move.From.x = -1;
+    Move.From.y = -1;
+    Move.To.x = -1;
+    Move.To.y = -1;
+    Move.Piece = Blank;
+    Move.PromotedTo = Blank;
+    Move.CapturedPiece = NULL;
+    Move.EnPassant = false;
+    Move.Check = false;
+    Move.Mate = false;
+    // TODO update other values (like en passant)
+    if (Str.compare("O-O-O") == 0)
     {
-      if (To.x == 2)
-        strcpy(Value, "O-O-O");
-      else if (To.x == 6)
-        strcpy(Value, "O-O");
+      Move.Piece = King;
+      Move.From.x = 4;
+      if (ActivePlayer == White)
+        Move.From.y = 0;
+      else
+        Move.From.y = 7;
+      Move.To.x = 2;
+      Move.To.y = Move.From.y;
+    }
+    else if (Str.compare("O-O") == 0)
+    {
+      Move.Piece = King;
+      Move.From.x = 4;
+      if (ActivePlayer == White)
+        Move.From.y = 0;
+      else
+        Move.From.y = 7;
+      Move.To.x = 6;
+      Move.To.y = Move.From.y;
     }
     else
     {
-      char* Str = ChessPiece::GetNotation(MovedPiece);
-      strcpy(Value, Str);
-      delete[] Str;
-      Str = From.ToAlgebraicNotation();
-      strcat(Value, Str);
-      delete[] Str;
-      if (Result & CapturedEnPassant)
-        strcat(Value, ":");
-      else if (Result & Captured)
-        strcat(Value, "x");
-      Str = To.ToAlgebraicNotation();
-      strcat(Value, Str);
-      delete[] Str;
-      if (Result & Promoted)
+      // Extract piece type
+      Move.Piece = ChessPiece::GetPieceType(Str.c_str());
+      if (Move.Piece != Pawn)
+        Str.erase(0,1);
+      // Remove status indicators
+      unsigned int Pos = Str.find_first_of(":x#+");
+      while (Pos != string::npos)
       {
-        strcat(Value, "=");
+        Str.erase(Pos,1);
+        Pos = Str.find_first_of(":x#+");
+      }
+      // Extract promotion
+      Pos = Str.find_first_of("=");
+      if (Pos != string::npos && Str[Pos] == '=' && Str.length() > Pos+1)
+      {
+        Move.PromotedTo = ChessPiece::GetPieceType(Str.substr(Pos+1).c_str());
+        Str.erase(Pos,1);
+      }
+      // Extract move
+      if (Str.length() >= 4)
+      {
+        Move.From = Position::ParseString(Str.c_str());
+        Move.To = Position::ParseString(Str.substr(2,2).c_str());
+      }
+      else if (Str.length() == 3)
+      {
+        Move.From = Position::ParseString(Str.substr(0,1).c_str());
+        Move.To = Position::ParseString(Str.substr(1,2).c_str());
+      }
+      else
+        Move.To = Position::ParseString(Str.c_str());
+    }
+    return Move;
+  }
+
+  char* ToAlgebraicNotation() const
+  {
+    char* Text = new char[16];
+    if (Piece == King && abs(To.x-From.x) == 2)
+    {
+      if (To.x == 2)
+        strcpy(Text, "O-O-O");
+      else if (To.x == 6)
+        strcpy(Text, "O-O");
+    }
+    else
+    {
+      char* Str = ChessPiece::GetNotation(Piece);
+      strcpy(Text, Str);
+      delete[] Str;
+      Str = From.ToString();
+      strcat(Text, Str);
+      delete[] Str;
+      if (CapturedPiece != NULL)
+      {
+        if (EnPassant)
+          strcat(Text, ":");
+        else
+          strcat(Text, "x");
+      }
+      Str = To.ToString();
+      strcat(Text, Str);
+      delete[] Str;
+      if (PromotedTo != Blank)
+      {
+        strcat(Text, "=");
         Str = ChessPiece::GetNotation(PromotedTo);
-        strcpy(Value, Str);
+        strcat(Text, Str);
         delete[] Str;
       }
-      if (Result & Checked && Result & Mated)
-        strcat(Value, "#");
-      else if (Result & Checked)
-        strcat(Value, "+");
+      if (Check && Mate)
+        strcat(Text, "#");
+      else if (Check)
+        strcat(Text, "+");
     }
-    return Value;
+    return Text;
   }
 };
 
 struct ChessPlayer
 {
   string Name;
-  unsigned int Time;
+  unsigned int MoveTime;
+  unsigned int TotalTime;
 };
 
 struct ChessGameImage
 {
   long Pieces[32];
-  GameMode Mode;
-  GameState State;
+  ChessGameMode Mode;
+  ChessGameState State;
   ChessPieceColor ActivePlayer;
   unsigned int TimePerMove;
-  unsigned long WhitePlayerTime;
-  unsigned long BlackPlayerTime;
-  // TODO Add move list
+  unsigned long WhitePlayerMoveTime;
+  unsigned long WhitePlayerTotalTime;
+  unsigned long BlackPlayerMoveTime;
+  unsigned long BlackPlayerTotalTime;
+  // TODO Add move list and timestamp
 };
 
-typedef LinkedList<ChessMove> MoveList;
-
-class ChessGame
+class ChessGame : public Observable
 {
 public:
-  ChessBoard Board;
-  MoveList Moves;
+  ChessGame();
+  ~ChessGame();
+
+  bool CanBePromoted(const Position Pos);
+  void Clear();
+  unsigned int CountBackMoves(const Position Pos);
+  void DrawGame();
+  void EndTurn();
+  ChessPieceColor GetActivePlayer();
+  int GetCaptureCount();
+  const ChessMove* GetDisplayedMove();
+  const LinkedList<ChessMove>* GetMoves();
+  ChessGameMode GetMode();
+  const ChessPiece* GetPiece(const Position Pos);
+  const ChessPlayer* GetPlayer(const ChessPieceColor Player);
+  SYSTEMTIME* GetStartTime();
+  ChessGameState GetState();
+  unsigned int GetTimePerMove();
+  void GotoFirstMove();
+  void GotoLastMove();
+  void GotoNextMove();
+  void GotoPreviousMove();
+  bool IsLastMoveDisplayed();
+  bool IsMoveValid(const Position From, const Position To);
+  bool IsPlayerChecked();
+  bool IsPlayerMated();
+  bool LoadFromFile(const string FileName);
+  bool LoadFromImage(const ChessGameImage* Image);
+  bool MakeMove(const Position From, const Position To, const bool Validate = true);
+  void PauseGame();
+  void PostponeGame();
+  bool PromotePawnTo(const ChessPieceType Type);
+  void Reset();
+  void ResignGame();
+  void ResumeGame();
+  bool SaveToFile(const string FileName);
+  bool SaveToImage(ChessGameImage* Image);
+  bool SetMode(const ChessGameMode NewMode, const unsigned int Time);
+  void SetPlayerName(const ChessPieceColor Player, const string Name);
+  bool SetPlayerTime(const ChessPieceColor Player, const unsigned long Time);
+  void StartGame();
+  void TakeBackMove();
+  bool UpdateTime(const unsigned long Time);
+
+private :
+  ChessBoard* DisplayBoard;
+  ChessBoard* GameBoard;
+  LinkedList<ChessMove>* Moves;
+
   ChessPlayer WhitePlayer;
   ChessPlayer BlackPlayer;
 
   ChessPieceColor ActivePlayer;
-  GameMode Mode;
-  GameState State;
+  unsigned int CaptureCount;
+  int CurrentMove;
+  ChessGameMode Mode;
+  ChessGameState State;
   unsigned int TimePerMove;
-
-  ChessGame();
-  ~ChessGame();
-
-  unsigned int CountBackMoves(Position Pos);
-  bool LoadFromFile(const char* FileName);
-  void LoadFromImage(const ChessGameImage* Image);
-  bool SaveToFile(const char* FileName);
-  void SaveToImage(ChessGameImage* Image);
-
-  void Reset();
+  SYSTEMTIME* Timestamp;
 };
 
 #endif

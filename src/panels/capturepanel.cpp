@@ -19,44 +19,43 @@
 */
 #include "capturepanel.h"
 
-extern ChessEngine Chess;
-
 const char ClassName[] = "CapturePanel";
 
 ATOM CapturePanel::ClassAtom = 0;
 
 // PUBLIC FUNCTIONS ------------------------------------------------------------
 
-CapturePanel::CapturePanel(HWND hParent, RECT* R)
+CapturePanel::CapturePanel(HINSTANCE hInstance, HWND hParent, RECT* R)
 {
-  HINSTANCE Instance = (hParent != NULL ? (HINSTANCE)GetWindowLong(hParent, GWL_HINSTANCE) : GetModuleHandle(NULL));
-
   Handle = NULL;
+  Game = NULL;
+  Set = NULL;
 
   Height = R->bottom-R->top;
   Width = R->right-R->left;
-
-  Set = NULL;
 
   if (ClassAtom == 0)
   {
     WNDCLASSEX WndClass;
     WndClass.cbSize = sizeof(WNDCLASSEX);
     WndClass.lpszClassName = ClassName;
-    WndClass.hInstance = Instance;
+    WndClass.hInstance = hInstance;
     WndClass.lpfnWndProc = WindowProc;
     WndClass.style = 0;
     WndClass.hbrBackground = GetSysColorBrush(COLOR_WINDOW);
     WndClass.hIcon = 0;
     WndClass.hIconSm = 0;
     WndClass.hCursor = LoadCursor(NULL,IDC_ARROW);
-    WndClass.lpszMenuName = 0;
+    WndClass.lpszMenuName = NULL;
     WndClass.cbClsExtra = 0;
     WndClass.cbWndExtra = 0;
     ClassAtom = RegisterClassEx(&WndClass);
   }
   if (ClassAtom != 0)
-    CreateWindowEx(0,ClassName,NULL,WS_CHILD|WS_CLIPSIBLINGS,R->left,R->top,Width,Height,hParent,NULL,Instance,this);
+  {
+    Handle = CreateWindowEx(0,ClassName,NULL,WS_CHILD|WS_CLIPSIBLINGS,
+        R->left,R->top,Width,Height,hParent,NULL,hInstance,this);
+  }
 }
 
 CapturePanel::~CapturePanel()
@@ -82,33 +81,37 @@ void CapturePanel::SetChessSet(ChessSet* NewSet)
   Invalidate();
 }
 
+void CapturePanel::SetGame(ChessGame* NewGame)
+{
+  Game = NewGame;
+  Invalidate();
+}
+
 // PRIVATE GUI FUNCTIONS -------------------------------------------------------
 
 void CapturePanel::DrawChessPieces(HDC DC)
 {
-  if (Set != NULL)
+  if (Game != NULL && Set != NULL)
   {
-    int X = 2;
-    int Y = 2;
     /* Set the style */
     SetBkMode(DC,TRANSPARENT);
-    int FontSize = max((int)(Height*0.15),10);
-    HFONT OldFont = (HFONT)SelectObject(DC,EasyCreateFont(DC,Set->FontName,FontSize,0));
+    HFONT OldFont = (HFONT)SelectObject(DC,EasyCreateFont(DC,Set->FontName.c_str(),PixelsToPoints(DC,(Width-4)/6),0));
     SIZE Size;
-    GetTextExtentPoint32(DC,&Set->Letters[0],1,&Size);
+    GetTextExtentPoint32(DC,Set->Letters.substr(0,1).c_str(),1,&Size);
     int SquareSize = max(Size.cx, Size.cy);
-    int W = X;
-    int Z = Y;
-    ChessPieceColor Color = White;
-    const ChessMove* Move = Chess.GetFirstMove();
+    int W = 0;
+    int Z = 0;
+    ChessPieceColor CurrentPlayer = White;
+    const LinkedList<ChessMove>* Moves = Game->GetMoves();
+    const ChessMove* Move = Moves->GetFirst();
     while (Move != NULL)
     {
       /* Obtain the piece to draw */
-      if (Move->CapturedPiece != Blank)
+      if (Move->CapturedPiece != NULL)
       {
         /* Obtain the letter to use */
         int Index;
-        switch (Move->CapturedPiece)
+        switch (Move->CapturedPiece->Type)
         {
           case King: Index = 0; break;
           case Queen: Index = 1; break;
@@ -118,19 +121,20 @@ void CapturePanel::DrawChessPieces(HDC DC)
           default: Index = 5; break;
         }
         /* Draw the piece */
-        if (Color == White)
-          TextOut(DC,W,Z,&Set->Letters[Index],1);
-        else
-          TextOut(DC,W,Z,&Set->Letters[Index+6],1);
+        TextOut(DC,W,Z,Set->Letters.substr(CurrentPlayer == White ? Index+6 : Index, 1).c_str(),1);
         W += SquareSize;
         if (W + SquareSize >= Width)
         {
-          W = X;
+          W = 1;
           Z = Z+SquareSize;
         }
       }
-      Color = !Color;
-      Move = Chess.GetNextMove();
+      CurrentPlayer = !CurrentPlayer;
+      /* Get next move */
+      if (Move == Game->GetDisplayedMove() || Game->GetDisplayedMove() == NULL)
+        Move = NULL;
+      else
+        Move = Moves->GetNext();
     }
     /* Clean up */
     SetBkMode(DC,OPAQUE);
@@ -148,11 +152,11 @@ void CapturePanel::Paint()
     HDC DC = BeginPaint(Handle, &PS);
     if (DC != NULL)
     {
-      /* Create a buffer DC to draw on */
+      /* Create a buffer to draw on */
       HDC Buffer = CreateCompatibleDC(DC);
       HBITMAP Bitmap = CreateCompatibleBitmap(DC,Width,Height);
       SelectObject(Buffer, Bitmap);
-      /* Erase the window */
+      /* Paint background */
       HBRUSH OldBrush = (HBRUSH)SelectObject(Buffer,CreateSolidBrush(GetSysColor(COLOR_BTNFACE)));
       HPEN OldPen = (HPEN)SelectObject(Buffer,CreatePen(PS_SOLID,1,GetSysColor(COLOR_BTNFACE)));
       Rectangle(Buffer,0,0,Width,Height);
@@ -188,12 +192,8 @@ LRESULT __stdcall CapturePanel::WindowProc(HWND hWnd, UINT Msg, WPARAM wParam, L
     case WM_CREATE:
     {
       CREATESTRUCT* Params = (CREATESTRUCT*)lParam;
-      CapturePanel* Panel = (CapturePanel*)Params->lpCreateParams;
+      CapturePanel* Panel = (CapturePanel*)(Params->lpCreateParams);
       SetWindowLong(hWnd, GWL_USERDATA, (LPARAM)Panel);
-
-      if (Panel != NULL)
-        Panel->Handle = hWnd;
-
       return 0;
     }
     case WM_ERASEBKGND:
@@ -203,17 +203,20 @@ LRESULT __stdcall CapturePanel::WindowProc(HWND hWnd, UINT Msg, WPARAM wParam, L
     case WM_PAINT:
     {
       CapturePanel* Panel = (CapturePanel*)GetWindowLong(hWnd, GWL_USERDATA);
-
       if (Panel != NULL)
+      {
         Panel->Paint();
+      }
       return 0;
     }
     case WM_SIZE:
     {
       CapturePanel* Panel = (CapturePanel*)GetWindowLong(hWnd, GWL_USERDATA);
-
-      if (Panel != NULL && (short)LOWORD(lParam) != Panel->Width || (short)HIWORD(lParam) != Panel->Height)
-        Panel->UpdateSize((short)LOWORD(lParam), (short)HIWORD(lParam));
+      if (Panel != NULL)
+      {
+        if (LOWORD(lParam) != Panel->Width || HIWORD(lParam) != Panel->Height)
+          Panel->UpdateSize((short)LOWORD(lParam), (short)HIWORD(lParam));
+      }
       return 0;
     }
   }

@@ -22,26 +22,22 @@
 const char ClassName[] = "PlayersInfoPanel";
 
 extern char DefaultFontName[];
-extern ChessEngine Chess;
 
 ATOM PlayerPanel::ClassAtom = 0;
+WNDPROC PlayerPanel::OldPlayerButtonProc = 0;
 
 // PUBLIC FUNCTIONS ------------------------------------------------------------
 
-PlayerPanel::PlayerPanel(HWND hParent, RECT* R, ChessPieceColor NewColor)
+PlayerPanel::PlayerPanel(HINSTANCE hInstance, HWND hParent, RECT* R, ChessPieceColor NewColor)
 {
-  HINSTANCE Instance = (hParent != NULL ? (HINSTANCE)GetWindowLong(hParent, GWL_HINSTANCE) : GetModuleHandle(NULL));
-
-  JoinButtonClickedProc = NULL;
-  ReadyButtonClickedProc = NULL;
-
   Handle = NULL;
-  JoinButton = NULL;
-  ReadyButton = NULL;
+  PlayerButton = NULL;
+  PlayerMenu = NULL;
 
+  Game = NULL;
   Color = NewColor;
   Set = NULL;
-  State = 0;
+  IsReady = false;
   Height = R->bottom-R->top;
   Width = R->right-R->left;
 
@@ -51,22 +47,51 @@ PlayerPanel::PlayerPanel(HWND hParent, RECT* R, ChessPieceColor NewColor)
     WNDCLASSEX WndClass;
     WndClass.cbSize = sizeof(WNDCLASSEX);
     WndClass.lpszClassName = ClassName;
-    WndClass.hInstance = Instance;
+    WndClass.hInstance = hInstance;
     WndClass.lpfnWndProc = PanelWindowProc;
     WndClass.style = 0;
     WndClass.hbrBackground = NULL;
     WndClass.hIcon = 0;
     WndClass.hIconSm = 0;
     WndClass.hCursor = LoadCursor(NULL,IDC_ARROW);
-    WndClass.lpszMenuName = 0;
+    WndClass.lpszMenuName = NULL;
     WndClass.cbClsExtra = 0;
     WndClass.cbWndExtra = 0;
     ClassAtom = RegisterClassEx(&WndClass);
   }
   /* Creates the window */
   if (ClassAtom != 0)
-    CreateWindowEx(0,ClassName,NULL,WS_CHILD | WS_CLIPCHILDREN | WS_CLIPSIBLINGS,
-    R->top,R->bottom,R->bottom-R->top,R->right-R->left,hParent,NULL,Instance,this);
+  {
+    Handle = CreateWindowEx(0,ClassName,NULL,WS_CHILD|WS_CLIPCHILDREN|WS_CLIPSIBLINGS,
+        R->top,R->bottom,Width,Height,hParent,NULL,hInstance,this);
+    if (Handle != NULL)
+    {
+      /* Create the child windows */
+      PlayerButton = CreateWindowEx(0,"BUTTON",NULL,WS_CHILD|WS_CLIPSIBLINGS|WS_TABSTOP|WS_VISIBLE,
+          0,0,0,0,Handle,NULL,hInstance,NULL);
+      OldPlayerButtonProc = (WNDPROC)SetWindowLong(PlayerButton,GWL_WNDPROC,(LONG)PlayerButtonProc);
+
+      /* Initialize child window placement */
+      ApplyThemeToCustomButton(Handle);
+      UpdateSize(Width, Height);
+
+      /* Change the window's appearance */
+      HFONT Font = EasyCreateFont(NULL,DefaultFontName,10,fsBold);
+      PostMessage(PlayerButton,WM_SETFONT,(WPARAM)Font,FALSE);
+
+      /* Create the popup menu */
+      PlayerMenu = CreatePopupMenu();
+      AppendMenu(PlayerMenu,Color == White ? IDS_PLAYERMENU_JOINASWHITE : IDS_PLAYERMENU_JOINASBLACK);
+      AppendMenu(PlayerMenu,IDS_PLAYERMENU_LEAVE);
+      AppendSeparator(PlayerMenu);
+      AppendMenu(PlayerMenu,IDS_PLAYERMENU_READY);
+
+      /* Set the menu items default state */
+      EnableMenuItem(PlayerMenu,Color == White ? IDS_PLAYERMENU_JOINASWHITE : IDS_PLAYERMENU_JOINASBLACK,MF_BYCOMMAND|MF_GRAYED);
+      EnableMenuItem(PlayerMenu,IDS_PLAYERMENU_LEAVE,MF_BYCOMMAND|MF_GRAYED);
+      EnableMenuItem(PlayerMenu,IDS_PLAYERMENU_READY,MF_BYCOMMAND|MF_GRAYED);
+    }
+  }
 }
 
 PlayerPanel::~PlayerPanel()
@@ -74,6 +99,26 @@ PlayerPanel::~PlayerPanel()
   /* Destroys the window */
   if (Handle != NULL)
     DestroyWindow(Handle);
+  if (PlayerButton != NULL)
+    DestroyWindow(PlayerButton);
+}
+
+void PlayerPanel::EnableJoinButton(const bool Value)
+{
+  if (PlayerMenu != NULL)
+    EnableMenuItem(PlayerMenu,Color == White ? IDS_PLAYERMENU_JOINASWHITE : IDS_PLAYERMENU_JOINASBLACK,MF_BYCOMMAND|(Value ? MF_ENABLED : MF_GRAYED));
+}
+
+void PlayerPanel::EnableLeaveButton(const bool Value)
+{
+  if (PlayerMenu != NULL)
+    EnableMenuItem(PlayerMenu,IDS_PLAYERMENU_LEAVE,MF_BYCOMMAND|(Value ? MF_ENABLED : MF_GRAYED));
+}
+
+void PlayerPanel::EnableReadyButton(const bool Value)
+{
+  if (PlayerMenu != NULL)
+    EnableMenuItem(PlayerMenu,IDS_PLAYERMENU_READY,MF_BYCOMMAND|(Value ? MF_ENABLED : MF_GRAYED));
 }
 
 HWND PlayerPanel::GetHandle()
@@ -85,6 +130,8 @@ void PlayerPanel::Invalidate()
 {
   if (Handle != NULL)
     InvalidateRect(Handle, NULL, FALSE);
+  if (PlayerButton != NULL)
+    InvalidateRect(PlayerButton, NULL, FALSE);
 }
 
 void PlayerPanel::SetChessSet(ChessSet* NewSet)
@@ -93,49 +140,15 @@ void PlayerPanel::SetChessSet(ChessSet* NewSet)
   Invalidate();
 }
 
-void PlayerPanel::SetState(int Result)
+void PlayerPanel::SetGame(ChessGame* NewGame)
 {
-  State = Result;
+  Game = NewGame;
   Invalidate();
 }
 
-void PlayerPanel::ShowJoinButton(const bool Value)
+void PlayerPanel::SetReady(bool Value)
 {
-  if (Handle != NULL)
-  {
-    if (Value)
-    {
-      SetWindowText(JoinButton,"Join");
-      SetWindowPos(JoinButton,NULL,0,0,0,0,SWP_NOZORDER|SWP_NOMOVE|SWP_NOSIZE|SWP_SHOWWINDOW);
-    }
-    else
-      SetWindowPos(JoinButton,NULL,0,0,0,0,SWP_NOZORDER|SWP_NOMOVE|SWP_NOSIZE|SWP_HIDEWINDOW);
-  }
-}
-
-void PlayerPanel::ShowLeaveButton(const bool Value)
-{
-  if (Handle != NULL)
-  {
-    if (Value)
-    {
-      SetWindowText(JoinButton,"Leave");
-      SetWindowPos(JoinButton,NULL,0,0,0,0,SWP_NOZORDER|SWP_NOMOVE|SWP_NOSIZE|SWP_SHOWWINDOW);
-    }
-    else
-      SetWindowPos(JoinButton,NULL,0,0,0,0,SWP_NOZORDER|SWP_NOMOVE|SWP_NOSIZE|SWP_HIDEWINDOW);
-  }
-}
-
-void PlayerPanel::ShowReadyButton(const bool Value)
-{
-  if (Handle != NULL)
-  {
-    if (Value)
-      SetWindowPos(ReadyButton,NULL,0,0,0,0,SWP_NOZORDER|SWP_NOMOVE|SWP_NOSIZE|SWP_SHOWWINDOW);
-    else
-      SetWindowPos(ReadyButton,NULL,0,0,0,0,SWP_NOZORDER|SWP_NOMOVE|SWP_NOSIZE|SWP_HIDEWINDOW);
-  }
+  IsReady = Value;
 }
 
 // PRIVATE GUI FUNCTIONS -------------------------------------------------------
@@ -147,69 +160,67 @@ void PlayerPanel::DrawChessPiece(HDC DC, int X, int Y)
     /* Set the style */
     SetBkMode(DC,TRANSPARENT);
     SetTextColor(DC, GetSysColor(COLOR_BTNTEXT));
-    HFONT OldFont = (HFONT)SelectObject(DC,EasyCreateFont(DC,Set->FontName,(int)(Height*.72),0));
+    HFONT OldFont = (HFONT)SelectObject(DC,EasyCreateFont(DC,Set->FontName.c_str(),PixelsToPoints(DC, Height-4),0));
     /* Draw the piece */
-    if (Color == White)
-      TextOut(DC,X,Y,&Set->Letters[0],1);
-    else
-      TextOut(DC,X,Y,&Set->Letters[6],1);
+    TextOut(DC,X,Y,Set->Letters.substr(Color == White ? 0 : 6, 1).c_str(),1);
     /* Clean up */
-    SetBkMode(DC,OPAQUE);
     DeleteObject(SelectObject(DC,OldFont));
+    SetBkMode(DC,OPAQUE);
   }
 }
 
 void PlayerPanel::DrawPlayerInformation(HDC DC, int X, int Y, int Width, int Height)
 {
-  SIZE S;
-  const ChessPlayer* Player = Chess.GetPlayer(Color);
-  SetBkMode(DC,TRANSPARENT);
-  SetTextColor(DC, GetSysColor(COLOR_BTNTEXT));
-  /* Draw a frame if player is active */
-  if (Chess.GetActivePlayer() == Color && Chess.GetGameState() == Started)
+  if (Game != NULL)
   {
-    SetTextColor(DC,GetSysColor(COLOR_HIGHLIGHTTEXT));
-    HBRUSH OldBrush = (HBRUSH)SelectObject(DC,CreateSolidBrush(GetSysColor(COLOR_HIGHLIGHT)));
-    HPEN OldPen = (HPEN)SelectObject(DC,CreatePen(PS_SOLID,1,GetSysColor(COLOR_HIGHLIGHT)));
-    Rectangle(DC,X,Y,X+Width,Y+Height);
-    DeleteObject(SelectObject(DC,OldPen));
-    DeleteObject(SelectObject(DC,OldBrush));
+    const ChessPlayer* Player = Game->GetPlayer(Color);
+    SetBkMode(DC,TRANSPARENT);
+    SetTextColor(DC, GetSysColor(COLOR_BTNTEXT));
+    /* Highlight the active player */
+    if (Game->GetActivePlayer() == Color && Game->GetState() != Undefined)
+    {
+      HBRUSH OldBrush = (HBRUSH)SelectObject(DC,CreateSolidBrush(GetSysColor(COLOR_HIGHLIGHT)));
+      HPEN OldPen = (HPEN)SelectObject(DC,CreatePen(PS_SOLID,1,GetSysColor(COLOR_HIGHLIGHT)));
+      Rectangle(DC,X,Y,X+Width,Y+Height);
+      DeleteObject(SelectObject(DC,OldPen));
+      DeleteObject(SelectObject(DC,OldBrush));
+      SetTextColor(DC,GetSysColor(COLOR_HIGHLIGHTTEXT));
+    }
+    if (Game->GetState() >= Started)
+    {
+      /* Draw the player's time */
+      SIZE S;
+      HFONT OldFont = (HFONT)SelectObject(DC,EasyCreateFont(DC,DefaultFontName,8,0));
+      char* Str = timeformat(Player->MoveTime/1000);
+      GetTextExtentPoint32(DC,Str,strlen(Str),&S);
+      TextOut(DC,X+4,Height-S.cy-2,Str,strlen(Str));
+      delete[] Str;
+      DeleteObject(SelectObject(DC,OldFont));
+    }
+    /* Draw the player's status */
+    string Text;
+    if (Game->GetActivePlayer() == Color)
+    {
+      if (Game->IsPlayerChecked() && Game->IsPlayerMated())
+        Text = "Checkmate";
+      else if (Game->IsPlayerMated())
+        Text = "Stalemate";
+      else if (Game->IsPlayerChecked())
+        Text = "Check";
+    }
+    else if (IsReady)
+      Text = "Ready";
+    if (Text.length() > 0)
+    {
+      SIZE S;
+      HFONT OldFont = (HFONT)SelectObject(DC,EasyCreateFont(DC,DefaultFontName,8,fsBold));
+      GetTextExtentPoint32(DC,Text.c_str(),Text.length(),&S);
+      TextOut(DC,X+Width-S.cx-4,Height-S.cy-2,Text.c_str(),Text.length());
+      DeleteObject(SelectObject(DC,OldFont));
+    }
+    /* Clean up */
+    SetBkMode(DC,OPAQUE);
   }
-  /* Draw the player's name */
-  HFONT OldFont = (HFONT)SelectObject(DC,EasyCreateFont(DC,DefaultFontName,11,0));
-  TextOut(DC,X+4,Y,Player->Name.c_str(),Player->Name.length());
-  if (Chess.GetGameState() > Created)
-  {
-    /* Draw the player's time */
-    DeleteObject(SelectObject(DC,OldFont));
-    OldFont = (HFONT)SelectObject(DC,EasyCreateFont(DC,DefaultFontName,8,0));
-    char* Str = timeformat(Player->Time/1000);
-    GetTextExtentPoint32(DC,Str,strlen(Str),&S);
-    TextOut(DC,X+4,Height-S.cy-2,Str,strlen(Str));
-    delete[] Str;
-  }
-  /* Draw the player's status */
-  DeleteObject(SelectObject(DC,OldFont));
-  OldFont = (HFONT)SelectObject(DC,EasyCreateFont(DC,DefaultFontName,8,fsBold));
-  char* Text = new char[16];
-  strcpy(Text, "");
-  if (State & Ready)
-    strcpy(Text, "Ready");
-  else if (State & Mated && State & Checked)
-    strcpy(Text, "Checkmate");
-  else if (State & Mated)
-    strcpy(Text, "Stalemate");
-  else if (State & Checked)
-    strcpy(Text, "Check");
-  if (strlen(Text) > 0)
-  {
-    GetTextExtentPoint32(DC,Text,strlen(Text),&S);
-    TextOut(DC,X+Width-S.cx-4,Height-S.cy-2,Text,strlen(Text));
-  }
-  delete[] Text;
-  /* Clean up */
-  SetBkMode(DC,OPAQUE);
-  DeleteObject(SelectObject(DC,OldFont));
 }
 
 // PRIVATE EVENT FUNCTIONS -----------------------------------------------------
@@ -252,8 +263,9 @@ void PlayerPanel::UpdateSize(int NewWidth, int NewHeight)
   Width = NewWidth;
   Height = NewHeight;
   /* Resize the child windows */
-  SetWindowPos(JoinButton,NULL,Height-2,Width-21,(Width-Height-2)/2,21,SWP_NOZORDER);
-  SetWindowPos(ReadyButton,NULL,Height+(Width-Height-2)/2,Height-21,(Width-Height-2)/2,21,SWP_NOZORDER);
+  float scaleFactor = GetDPIScaleFactor();
+  if (PlayerButton != NULL)
+    SetWindowPos(PlayerButton,NULL,Height-2,1,Width-Height,(int)(21*scaleFactor),SWP_NOZORDER);
 }
 
 // PRIVATE WINAPI FUNCTIONS ----------------------------------------------------
@@ -262,53 +274,26 @@ LRESULT __stdcall PlayerPanel::PanelWindowProc(HWND hWnd, UINT Msg, WPARAM wPara
 {
   switch(Msg)
   {
+    case WM_COMMAND:
+    {
+      /* Forward message to parent */
+      return SendMessage(GetParent(hWnd), WM_COMMAND, wParam, lParam);
+    }
+    case WM_CONTEXTMENU:
+    {
+      /* Show menu */
+      PlayerPanel* Panel = (PlayerPanel*)GetWindowLong(hWnd, GWL_USERDATA);
+      if (Panel != NULL)
+      {
+        TrackPopupMenu(Panel->PlayerMenu, TPM_LEFTALIGN, LOWORD(lParam), HIWORD(lParam), 0, hWnd, NULL);
+      }
+      return 0;
+    }
     case WM_CREATE:
     {
       CREATESTRUCT* Params = (CREATESTRUCT*)lParam;
-      PlayerPanel* Panel = (PlayerPanel*)Params->lpCreateParams;
+      PlayerPanel* Panel = (PlayerPanel*)(Params->lpCreateParams);
       SetWindowLong(hWnd, GWL_USERDATA, (LPARAM)Panel);
-
-      if (Panel != NULL)
-      {
-        Panel->Handle = hWnd;
-
-        /* Create the child windows */
-        Panel->JoinButton = CreateWindowEx(0,"BUTTON",NULL,WS_CHILD | WS_CLIPSIBLINGS | WS_TABSTOP,
-            Panel->Height-2,Panel->Height-21,(Panel->Width-Panel->Height-2)/2,21,hWnd,NULL,Params->hInstance,NULL);
-        Panel->ReadyButton = CreateWindowEx(0,"BUTTON","Ready",WS_CHILD | WS_CLIPSIBLINGS | WS_TABSTOP,
-            Panel->Height+(Panel->Width-Panel->Height-2)/2,Panel->Height-21,(Panel->Width-Panel->Height-2)/2,21,hWnd,NULL,Params->hInstance,NULL);
-
-        /* Change the window's appearance */
-        HFONT Font = EasyCreateFont(NULL,DefaultFontName,8,fsBold);
-        PostMessage(Panel->JoinButton,WM_SETFONT,(WPARAM)Font,FALSE);
-        PostMessage(Panel->ReadyButton,WM_SETFONT,(WPARAM)Font,FALSE);
-      }
-      return 0;
-    }
-    case WM_COMMAND:
-    {
-      PlayerPanel* Panel = (PlayerPanel*)GetWindowLong(hWnd, GWL_USERDATA);
-
-      /* Process child window's messages */
-      if (Panel != NULL)
-      {
-        if ((HWND)lParam == Panel->JoinButton && Panel->JoinButtonClickedProc != NULL)
-          (*(Panel->JoinButtonClickedProc))(Panel->Color);
-        if ((HWND)lParam == Panel->ReadyButton && Panel->ReadyButtonClickedProc != NULL)
-          (*(Panel->ReadyButtonClickedProc))(Panel->Color);
-      }
-      return 0;
-    }
-    case WM_DESTROY:
-    {
-      PlayerPanel* Panel = (PlayerPanel*)GetWindowLong(hWnd, GWL_USERDATA);
-
-      /* Destroy the child windows */
-      if (Panel != NULL)
-      {
-        DestroyWindow(Panel->JoinButton);
-        DestroyWindow(Panel->ReadyButton);
-      }
       return 0;
     }
     case WM_ERASEBKGND:
@@ -318,19 +303,163 @@ LRESULT __stdcall PlayerPanel::PanelWindowProc(HWND hWnd, UINT Msg, WPARAM wPara
     case WM_PAINT:
     {
       PlayerPanel* Panel = (PlayerPanel*)GetWindowLong(hWnd, GWL_USERDATA);
-
       if (Panel != NULL)
+      {
         Panel->Paint();
+      }
       return 0;
     }
     case WM_SIZE:
     {
       PlayerPanel* Panel = (PlayerPanel*)GetWindowLong(hWnd, GWL_USERDATA);
-
-      if (Panel != NULL && LOWORD(lParam) != Panel->Width || HIWORD(lParam) != Panel->Height)
-          Panel->UpdateSize((short)LOWORD(lParam), (short)HIWORD(lParam));
+      if (Panel != NULL)
+      {
+        if (LOWORD(lParam) != Panel->Width || HIWORD(lParam) != Panel->Height)
+            Panel->UpdateSize((short)LOWORD(lParam), (short)HIWORD(lParam));
+      }
+      return 0;
+    }
+    case WM_THEMECHANGED:
+    {
+      ApplyThemeToCustomButton(hWnd);
+      return 0;
+    }
+    case WM_UNINITMENUPOPUP:
+    {
+      PlayerPanel* Panel = (PlayerPanel*)GetWindowLong(hWnd, GWL_USERDATA);
+      if (Panel != NULL && Panel->PlayerButton != NULL)
+      {
+        POINT Pos;
+        GetCursorPos(&Pos);
+        RECT R;
+        GetWindowRect(hWnd, &R);
+        Pos.x = Pos.x-R.left;
+        Pos.y = Pos.y-R.top;
+        if (ChildWindowFromPoint(hWnd,Pos) != Panel->PlayerButton)
+        {
+          // Set button status to none
+          SetWindowLong(Panel->PlayerButton, GWL_USERDATA, 0);
+          InvalidateRect(Panel->PlayerButton, NULL, TRUE);
+        }
+      }
       return 0;
     }
   }
   return DefWindowProc(hWnd,Msg,wParam,lParam);
+}
+
+LRESULT __stdcall PlayerPanel::PlayerButtonProc(HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lParam)
+{
+  switch (Msg)
+  {
+    case WM_LBUTTONDOWN:
+    {
+      SetCapture(hWnd);
+
+      /* Show menu */
+      if (GetWindowLong(hWnd, GWL_USERDATA) < 2)
+      {
+        RECT R;
+        GetWindowRect(hWnd, &R);
+        PostMessage(GetParent(hWnd), WM_CONTEXTMENU, (WPARAM)hWnd, MAKELPARAM(R.left,R.bottom));
+      }
+
+      /* Set button status to pressed */
+      SetWindowLong(hWnd, GWL_USERDATA, 2);
+      InvalidateRect(hWnd, NULL, TRUE);
+      return 0;
+    }
+    case WM_LBUTTONUP:
+    {
+      ReleaseCapture();
+
+      /* Set button status to hover */
+      SetWindowLong(hWnd, GWL_USERDATA, 1);
+      InvalidateRect(hWnd, NULL, TRUE);
+      return 0;
+    }
+    case WM_MOUSEMOVE:
+    {
+      /* Track mouse leave */
+      TRACKMOUSEEVENT* Event = new TRACKMOUSEEVENT;
+      Event->cbSize = sizeof(TRACKMOUSEEVENT);
+      Event->dwFlags = TME_LEAVE;
+      Event->hwndTrack = hWnd;
+      TrackMouseEvent(Event);
+
+      /* Set button status to hover */
+      SetWindowLong(hWnd, GWL_USERDATA, 1);
+      InvalidateRect(hWnd, NULL, TRUE);
+      return 0;
+    }
+    case WM_MOUSELEAVE:
+    {
+      if (GetWindowLong(hWnd, GWL_USERDATA) < 2)
+      {
+        /* Set button status to none */
+        SetWindowLong(hWnd, GWL_USERDATA, 0);
+        InvalidateRect(hWnd, NULL, TRUE);
+      }
+      return 0;
+    }
+    case WM_PAINT:
+    {
+      PlayerPanel* Panel = (PlayerPanel*)GetWindowLong(GetParent(hWnd), GWL_USERDATA);
+
+      if (Panel != NULL)
+      {
+        PAINTSTRUCT PS;
+        HDC DC = BeginPaint(hWnd, &PS);
+        if (DC != NULL)
+        {
+          RECT R;
+          GetClientRect(hWnd, &R);
+
+          /* Paint the background */
+          if (GetWindowLong(hWnd, GWL_USERDATA) == 0)
+          {
+            /* Plain background */
+            HBRUSH OldBrush = (HBRUSH)SelectObject(DC,CreateSolidBrush(GetSysColor(Panel->Game != NULL && Panel->Game->GetActivePlayer() == Panel->Color && Panel->Game->GetState() != Undefined ? COLOR_HIGHLIGHT : COLOR_BTNFACE)));
+            HPEN OldPen = (HPEN)SelectObject(DC,CreatePen(PS_SOLID,1,GetSysColor(Panel->Game != NULL && Panel->Game->GetActivePlayer() == Panel->Color && Panel->Game->GetState() != Undefined ? COLOR_HIGHLIGHT : COLOR_BTNFACE)));
+            Rectangle(DC,R.top,R.left,R.right-R.left,R.bottom-R.top);
+            DeleteObject(SelectObject(DC,OldPen));
+            DeleteObject(SelectObject(DC,OldBrush));
+          }
+          else
+          {
+            /* Button frame background */
+            DRAWITEMSTRUCT* Item = new DRAWITEMSTRUCT;
+            Item->hDC = DC;
+            Item->itemState = (GetWindowLong(hWnd, GWL_USERDATA) > 1 ? ODS_SELECTED : ODS_DEFAULT);
+            Item->rcItem = R;
+            DrawCustomButton(hWnd, Item);
+            delete Item;
+          }
+
+          /* Draw the player's name */
+          if (Panel->Game != NULL)
+          {
+            InflateRect(&R,-5,-1);
+            const ChessPlayer* Player = Panel->Game->GetPlayer(Panel->Color);
+            SetBkMode(DC,TRANSPARENT);
+            SetTextColor(DC, GetSysColor(Panel->Game->GetActivePlayer() == Panel->Color && Panel->Game->GetState() != Undefined && GetWindowLong(hWnd, GWL_USERDATA) == 0 ? COLOR_HIGHLIGHTTEXT : COLOR_BTNTEXT));
+            HFONT OldFont = (HFONT)SelectObject(DC,EasyCreateFont(DC,DefaultFontName,9,0));
+            const char* Text = Player->Name.c_str();
+            if (strlen(Text) == 0)
+            {
+              if (Panel->Color == White)
+                Text = "White";
+              else
+                Text = "Black";
+            }
+            DrawText(DC,Text,strlen(Text),&R,DT_NOPREFIX|DT_SINGLELINE|DT_LEFT|DT_VCENTER|DT_END_ELLIPSIS);
+            DeleteObject(SelectObject(DC,OldFont));
+          }
+        }
+        EndPaint(hWnd, &PS);
+      }
+      return 0;
+    }
+  }
+  return CallWindowProc(OldPlayerButtonProc, hWnd, Msg, wParam, lParam);
 }

@@ -25,7 +25,7 @@
 
 /* Static information */
 const int GameClient::Port = 2570;
-const char* GameClient::Id = "AlphaChess";
+const string GameClient::Id = "AlphaChess";
 const int GameClient::SupportedVersion = 400;
 const int GameClient::Version = 400;
 
@@ -35,7 +35,6 @@ GameClient::GameClient(HWND hParent)
 {
   hThread = NULL;
   hWindow = hParent;
-  RemoteHost = NULL;
   Socket = new TCPClientSocket();
   Connected = false;
   InRoom = false;
@@ -44,7 +43,6 @@ GameClient::GameClient(HWND hParent)
   GameHost = NULL;
   LocalPlayer = new PlayerInfo;
   LocalPlayer->PlayerId = 0;
-  strcpy(LocalPlayer->Name,"");
   LocalPlayer->Ready = false;
   LocalPlayer->Time = 0;
   BlackPlayer = NULL;
@@ -85,7 +83,7 @@ bool GameClient::AcceptTakebackRequest(const bool Value)
     return false;
 }
 
-bool GameClient::Connect(char* Address)
+bool GameClient::Connect(string Address)
 {
   if (!Socket->IsConnected())
   {
@@ -97,19 +95,17 @@ bool GameClient::Connect(char* Address)
       return false;
     return true;
   }
-  else if (RemoteHost != NULL && RemoteHost != Address)
-    return (strcmp(RemoteHost,Address) == 0);
   else
-    return (RemoteHost == Address);
+    return (RemoteHost.compare(Address) == 0);
 }
 
-bool GameClient::CreateRoom(const char* RoomName)
+bool GameClient::CreateRoom(const string RoomName)
 {
   if (Connected)
   {
     if (!Socket->SendInteger(ND_CreateRoom))
       return false;
-    if (!Socket->SendString(RoomName))
+    if (!Socket->SendString(RoomName.c_str()))
       return false;
     return true;
   }
@@ -127,8 +123,7 @@ bool GameClient::Disconnect()
     unsigned long ExitCode = STILL_ACTIVE;
     while (GetExitCodeThread(hThread,&ExitCode) != 0 && ExitCode == STILL_ACTIVE)
       Sleep(50);
-    /* Clean up */
-    delete[] RemoteHost;
+    RemoteHost = "";
     return true;
   }
   else
@@ -328,13 +323,13 @@ bool GameClient::ResumeGame()
     return false;
 }
 
-bool GameClient::SetPlayerName(const char* Name)
+bool GameClient::SetPlayerName(const string Name)
 {
   if (Connected)
   {
     if (!Socket->SendInteger(ND_Name))
       return false;
-    if (!Socket->SendString(Name))
+    if (!Socket->SendString(Name.c_str()))
       return false;
     return true;
   }
@@ -387,13 +382,13 @@ bool GameClient::SendGameData(const void* Data, const unsigned long DataSize)
     return false;
 }
 
-bool GameClient::SendText(const char* Message)
+bool GameClient::SendText(const string Message)
 {
   if (Connected)
   {
     if (!Socket->SendInteger(ND_Message))
       return false;
-    if (!Socket->SendString(Message))
+    if (!Socket->SendString(Message.c_str()))
       return false;
     return true;
   }
@@ -476,16 +471,16 @@ PlayerInfo* GameClient::FindPlayer(unsigned int PlayerId)
 bool GameClient::OpenConnection()
 {
   /* Connect to the server */
-  if (RemoteHost != NULL && Socket->Connect(RemoteHost,Port))
+  if (Socket->Connect(RemoteHost.c_str(),Port))
   {
     /* Exchange version information */
-    Socket->SendString(Id);
+    Socket->SendString(Id.c_str());
     Socket->SendInteger(Version);
-    char* RemoteId = Socket->ReceiveString();
+    string RemoteId = Socket->ReceiveString();
     int RemoteVersion = Socket->ReceiveInteger();
 
     /* Validate the version information */
-    if (strcmp(Id,RemoteId) == 0 && RemoteVersion >= SupportedVersion)
+    if (Id.compare(RemoteId) == 0 && RemoteVersion >= SupportedVersion)
       return true;
   }
   return false;
@@ -501,7 +496,7 @@ bool GameClient::ReceiveData()
       case ND_Disconnection:
       {
         /* Notify the interface */
-        PostMessage(hWindow,WM_UPDATEUI,MAKEWPARAM(Disconnected,0),0);
+        PostMessage(hWindow,WM_UPDATEINTERFACE,MAKEWPARAM(Disconnected,0),0);
         return true;
       }
       case ND_GameData:
@@ -516,7 +511,7 @@ bool GameClient::ReceiveData()
           if (Socket->ReceiveBytes(Data, DataSize) == DataSize)
           {
             /* Update the interface */
-            PostMessage(hWindow,WM_UPDATEUI,MAKEWPARAM(GameDataReceived,0),(LPARAM)Data);
+            PostMessage(hWindow,WM_UPDATEINTERFACE,MAKEWPARAM(GameDataReceived,0),(LPARAM)Data);
           }
         }
         break;
@@ -536,7 +531,7 @@ bool GameClient::ReceiveData()
           /* Change the host */
           GameHost = Player;
           /* Notify the interface */
-          PostMessage(hWindow,WM_UPDATEUI,MAKEWPARAM(HostChanged,0),0);
+          PostMessage(hWindow,WM_UPDATEINTERFACE,MAKEWPARAM(HostChanged,0),0);
         }
         break;
       }
@@ -555,10 +550,10 @@ bool GameClient::ReceiveData()
         {
           /* Store information on the message */
           MessageInfo* Message = new MessageInfo;
-          strcpy(Message->PlayerName,Player->Name);
+          Message->PlayerName = Player->Name;
           Message->Message = Text;
           /* Notify the interface */
-          PostMessage(hWindow,WM_UPDATEUI,MAKEWPARAM(MessageReceived,0),(LPARAM)Message);
+          PostMessage(hWindow,WM_UPDATEINTERFACE,MAKEWPARAM(MessageReceived,0),(LPARAM)Message);
         }
         else
           delete[] Text;
@@ -573,7 +568,7 @@ bool GameClient::ReceiveData()
         std::cout << "Received Data : A player has made a move" << std::endl;
 #endif
         /* Notify the interface */
-        PostMessage(hWindow,WM_UPDATEUI,MAKEWPARAM(MoveReceived,0),Data);
+        PostMessage(hWindow,WM_UPDATEINTERFACE,MAKEWPARAM(MoveReceived,0),Data);
         break;
       }
       case ND_Name:
@@ -590,9 +585,9 @@ bool GameClient::ReceiveData()
         if (Player != NULL)
         {
           /* Update the player's name */
-          strcpy(Player->Name,PlayerName);
+          Player->Name = PlayerName;
           /* Notify the interface to update the player's name */
-          PostMessage(hWindow,WM_UPDATEUI,MAKEWPARAM(PlayerNameChanged,0),(LPARAM)Player);
+          PostMessage(hWindow,WM_UPDATEINTERFACE,MAKEWPARAM(PlayerNameChanged,0),(LPARAM)Player);
         }
         /* Clean up */
         delete[] PlayerName;
@@ -607,7 +602,7 @@ bool GameClient::ReceiveData()
           case GameData:
           {
             /* Notify the interface to send the game data */
-            PostMessage(hWindow,WM_UPDATEUI,MAKEWPARAM(GameDataRequested,0),0);
+            PostMessage(hWindow,WM_UPDATEINTERFACE,MAKEWPARAM(GameDataRequested,0),0);
             break;
           }
           default:
@@ -669,7 +664,7 @@ bool GameClient::ReceiveData()
             break;
         }
         /* Notify the interface */
-        PostMessage(hWindow,WM_UPDATEUI,MAKEWPARAM(NotificationReceived,Notification),0);
+        PostMessage(hWindow,WM_UPDATEINTERFACE,MAKEWPARAM(NotificationReceived,Notification),0);
         break;
       }
       case ND_PlayerId:
@@ -685,7 +680,7 @@ bool GameClient::ReceiveData()
         /* Connection is completed */
         Connected = true;
         /* Notify the interface that the connection is established */
-        PostMessage(hWindow,WM_UPDATEUI,MAKEWPARAM(ConnectionSucceeded,0),0);
+        PostMessage(hWindow,WM_UPDATEINTERFACE,MAKEWPARAM(ConnectionSucceeded,0),0);
         break;
       }
       case ND_PlayerJoined:
@@ -703,13 +698,13 @@ bool GameClient::ReceiveData()
           /* Store information for the remote player */
           Player = new PlayerInfo;
           Player->PlayerId = PlayerId;
-          strcpy(Player->Name,PlayerName);
+          Player->Name = PlayerName;
           Player->Ready = false;
           Player->Time = 0;
           /* Add the remote player to the list */
           Observers.Add(Player);
           /* Notify the interface that the player joined */
-          PostMessage(hWindow,WM_UPDATEUI,MAKEWPARAM(PlayerJoined,0),(LPARAM)Player);
+          PostMessage(hWindow,WM_UPDATEINTERFACE,MAKEWPARAM(PlayerJoined,0),(LPARAM)Player);
         }
         break;
       }
@@ -726,14 +721,14 @@ bool GameClient::ReceiveData()
         if (WhitePlayer != NULL && WhitePlayer->PlayerId == PlayerId)
         {
           PlayerName = new char[sizeof(WhitePlayer->Name)];
-          strcpy(PlayerName,WhitePlayer->Name);
+          strcpy(PlayerName,WhitePlayer->Name.c_str());
           delete WhitePlayer;
           WhitePlayer = NULL;
         }
         else if (BlackPlayer != NULL && BlackPlayer->PlayerId == PlayerId)
         {
           PlayerName = new char[sizeof(BlackPlayer->Name)];
-          strcpy(PlayerName,BlackPlayer->Name);
+          strcpy(PlayerName,BlackPlayer->Name.c_str());
           delete BlackPlayer;
           BlackPlayer = NULL;
         }
@@ -745,13 +740,13 @@ bool GameClient::ReceiveData()
           if (Observer != NULL)
           {
             PlayerName = new char[sizeof(Observer->Name)];
-            strcpy(PlayerName,Observer->Name);
+            strcpy(PlayerName,Observer->Name.c_str());
             Observers.Remove(Observer);
             delete Observer;
           }
         }
         /* Notify the interface that a player left */
-        PostMessage(hWindow,WM_UPDATEUI,MAKEWPARAM(PlayerLeft,0),(LPARAM)PlayerName);
+        PostMessage(hWindow,WM_UPDATEINTERFACE,MAKEWPARAM(PlayerLeft,0),(LPARAM)PlayerName);
         break;
       }
       case ND_PlayerReady:
@@ -769,7 +764,7 @@ bool GameClient::ReceiveData()
           /* Update the player */
           Player->Ready = true;
           /* Notify the interface to update the players information */
-          PostMessage(hWindow,WM_UPDATEUI,MAKEWPARAM(PlayerStateChanged,0),(LPARAM)Player);
+          PostMessage(hWindow,WM_UPDATEINTERFACE,MAKEWPARAM(PlayerStateChanged,0),(LPARAM)Player);
         }
         break;
       }
@@ -786,7 +781,7 @@ bool GameClient::ReceiveData()
             std::cout << "Received Data : Opponent requests a draw" << std::endl;
 #endif
             /* Notify the interface to display the request */
-            PostMessage(hWindow,WM_UPDATEUI,MAKEWPARAM(RequestReceived,Request),0);
+            PostMessage(hWindow,WM_UPDATEINTERFACE,MAKEWPARAM(RequestReceived,Request),0);
             break;
           }
           case TakebackRequest:
@@ -796,7 +791,7 @@ bool GameClient::ReceiveData()
             std::cout << "Received Data : Opponent requests to take back his move" << std::endl;
 #endif
             /* Notify the interface to display the request */
-            PostMessage(hWindow,WM_UPDATEUI,MAKEWPARAM(RequestReceived,Request),0);
+            PostMessage(hWindow,WM_UPDATEINTERFACE,MAKEWPARAM(RequestReceived,Request),0);
             break;
           }
         }
@@ -818,7 +813,7 @@ bool GameClient::ReceiveData()
           /* Update the player */
           Player->Time = Time;
           /* Notify the interface to update the players information */
-          PostMessage(hWindow,WM_UPDATEUI,MAKEWPARAM(PlayerTimeChanged,0),(LPARAM)Player);
+          PostMessage(hWindow,WM_UPDATEINTERFACE,MAKEWPARAM(PlayerTimeChanged,0),(LPARAM)Player);
         }
         break;
       }
@@ -860,9 +855,9 @@ bool GameClient::ReceiveData()
             Observers.Add(Player);
           Player->Ready = false;
           /* Notify the interface to update the player */
-          PostMessage(hWindow,WM_UPDATEUI,MAKEWPARAM(PlayerTypeChanged,OldType),(LPARAM)Player);
+          PostMessage(hWindow,WM_UPDATEINTERFACE,MAKEWPARAM(PlayerTypeChanged,OldType),(LPARAM)Player);
           /* Notify the interface to update the player */
-          PostMessage(hWindow,WM_UPDATEUI,MAKEWPARAM(PlayerStateChanged,0),(LPARAM)Player);
+          PostMessage(hWindow,WM_UPDATEINTERFACE,MAKEWPARAM(PlayerStateChanged,0),(LPARAM)Player);
         }
         break;
       }
@@ -871,7 +866,7 @@ bool GameClient::ReceiveData()
         /* Receive a chess piece type */
         int Type = Socket->ReceiveInteger();
         /* Notify the interface to promote the last played piece */
-        PostMessage(hWindow,WM_UPDATEUI,MAKEWPARAM(PromotionReceived,0),(LPARAM)Type);
+        PostMessage(hWindow,WM_UPDATEINTERFACE,MAKEWPARAM(PromotionReceived,0),(LPARAM)Type);
         break;
       }
       case ND_RoomInfo:
@@ -883,17 +878,18 @@ bool GameClient::ReceiveData()
         int PlayerCount = Socket->ReceiveInteger();
         /* Store information on the room */
         RoomInfo* Room = new RoomInfo;
-        strncpy(Room->Name,RoomName,sizeof(Room->Name));
+        Room->Name = RoomName;
         Room->RoomId = RoomId;
         Room->Locked = RoomLocked;
         Room->PlayerCount = PlayerCount;
         /* Notify the interface to update the room list */
-        PostMessage(hWindow,WM_UPDATEUI,MAKEWPARAM(RoomInfoReceived,0),(LPARAM)Room);
+        PostMessage(hWindow,WM_UPDATEINTERFACE,MAKEWPARAM(RoomInfoReceived,0),(LPARAM)Room);
+        delete[] RoomName;
         break;
       }
       default:
         /* Notify the interface */
-        PostMessage(hWindow,WM_UPDATEUI,MAKEWPARAM(Disconnected,0),0);
+        PostMessage(hWindow,WM_UPDATEINTERFACE,MAKEWPARAM(Disconnected,0),0);
         return false;
     }
   }
@@ -908,7 +904,7 @@ unsigned long __stdcall GameClient::ThreadEntry(void* arg)
     Client->CloseConnection();
   }
   else
-    PostMessage(Client->hWindow,WM_UPDATEUI,MAKEWPARAM(ConnectionFailed,0),0);
+    PostMessage(Client->hWindow,WM_UPDATEINTERFACE,MAKEWPARAM(ConnectionFailed,0),0);
   Client->hThread = NULL;
   return 0;
 }

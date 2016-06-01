@@ -1,7 +1,7 @@
 /*
 * PreferencesDialog.cpp
 *
-* Copyright (C) 2007-2009 Marc-André Lamothe.
+* Copyright (C) 2007-2010 Marc-André Lamothe.
 *
 * This program is free software; you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -19,65 +19,48 @@
 */
 #include "preferencesdialog.h"
 
-#include "themesdialog.h"
-#include "../chessset.h"
-#include "../chessboardtheme.h"
-#include "../resource.h"
-#include "../panels/chessboardpanel.h"
-
-extern ChessBoardPanel* hChessBoardPanel;
-
-extern LinkedList<ChessSet> ChessSets;
-extern int ChessSetIndex;
-
-extern bool AutomaticUpdate;
-extern bool AlwaysOnTop;
-extern bool AlwaysVisible;
-extern bool AutomaticallySwitchView;
-extern bool AlwaysPromoteToQueen;
-extern bool PlayersInfoVisible;
-extern bool CaptureListVisible;
-extern bool MoveListVisible;
-
-LinkedList<string>* GetThemes();
-void LoadChessSet(int Index);
-void LoadTheme(char* FileName);
-void SetAlwaysOnTop(bool Value);
-void ShowPlayersInfo(bool Value);
-void ShowCaptureList(bool Value);
-void ShowMoveList(bool Value);
-
 // PRIVATE FUNCTIONS -----------------------------------------------------------
 
-static void ListThemes(HWND hDlg, int ControlID)
+static void ListThemes(HWND List, string ThemesDirectory)
 {
-  LinkedList<string>* Themes = GetThemes();
+  /* Get the path to the thenes directory */
+  if (!DirectoryExists(ThemesDirectory.c_str()))
+    CreateDirectory(ThemesDirectory.c_str(), NULL);
+
   /* Save current item selection */
-  int CurSel = SendDlgItemMessage(hDlg, ControlID, CB_GETCURSEL, 0, 0);
+  int CurSel = SendMessage(List, CB_GETCURSEL, 0, 0);
+
   /* Clears the list */
-  SendDlgItemMessage(hDlg, ControlID, CB_RESETCONTENT, 0, 0);
-  /* Populate the list */
-  for (int i=0; i < Themes->Size(); i++)
-    SendDlgItemMessage(hDlg, ControlID, CB_ADDSTRING, 0, (LPARAM)Themes->Get(i)->c_str());
+  SendMessage(List, CB_RESETCONTENT, 0, 0);
+
+  /* Get the themes in the folder */
+  WIN32_FIND_DATA FindData;
+  string FileName = ThemesDirectory + "*.ini";
+  HANDLE Handle = FindFirstFile(FileName.c_str(), &FindData);
+  if (Handle != INVALID_HANDLE_VALUE)
+  {
+    do if (FindData.cFileName[0] != '.' && !(FindData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY))
+    {
+      char* Str = substr(FindData.cFileName, 0, strrpos(FindData.cFileName,"."));
+      SendMessage(List, CB_ADDSTRING, 0, (LPARAM)Str);
+      delete[] Str;
+    }
+    while (FindNextFile(Handle, &FindData));
+    FindClose(Handle);
+  }
+
   /* Select previously selected item */
   if (CurSel >= 0)
-    SendDlgItemMessage(hDlg, ControlID, CB_SETCURSEL, CurSel, 0);
+    SendMessage(List, CB_SETCURSEL, CurSel, 0);
 }
 
-static void ListChessSets(HWND hDlg, int ControlID)
+static void ListChessSets(HWND List, LinkedList<ChessSet>* ChessSets)
 {
   /* Clears the list */
-  SendDlgItemMessage(hDlg, ControlID, CB_RESETCONTENT, 0, 0);
+  SendMessage(List, CB_RESETCONTENT, 0, 0);
   /* Populate the combobox */
-  for (int i=0; i < ChessSets.Size(); i++)
-    SendDlgItemMessage(hDlg, ControlID, CB_ADDSTRING, 0, (LPARAM)ChessSets.Get(i)->FontName);
-}
-
-static void SelectComboBoxItem(HWND hDlg, int ControlID, char* Text)
-{
-  int Index = SendDlgItemMessage(hDlg, ControlID, CB_FINDSTRINGEXACT, (WPARAM)-1, (LPARAM)Text);
-  if (Index != CB_ERR)
-    SendDlgItemMessage(hDlg, ControlID, CB_SETCURSEL, Index, 0);
+  for (unsigned int i=0; i < ChessSets->Size(); i++)
+    SendMessage(List, CB_ADDSTRING, 0, (LPARAM)ChessSets->Get(i)->FontName.c_str());
 }
 
 // WINAPI FUNCTIONS ------------------------------------------------------------
@@ -86,7 +69,7 @@ static BOOL __stdcall PreferencesDialogProc(HWND hDlg, UINT uMsg, WPARAM wParam,
 {
   switch (uMsg)
   {
-    case WM_COMMAND: /* Process control messages */
+    case WM_COMMAND:
     {
       switch (LOWORD(wParam))
       {
@@ -95,14 +78,10 @@ static BOOL __stdcall PreferencesDialogProc(HWND hDlg, UINT uMsg, WPARAM wParam,
         case IDC_ALWAYSVISIBLE:
         case IDC_AUTOINVERTVIEW:
         case IDC_PROMOTETOQUEEN:
-        {
-          if (HIWORD(wParam) == BN_CLICKED)
-            SendMessage(GetParent(hDlg), PSM_CHANGED, (WPARAM)hDlg, 0);
-          break;
-        }
         case IDC_SHOWCOORDINATES:
         case IDC_SHOWLASTMOVE:
         case IDC_SHOWINVALIDMOVES:
+        case IDC_SHOWMOVELISTICONS:
         {
           if (HIWORD(wParam) == BN_CLICKED)
             SendMessage(GetParent(hDlg), PSM_CHANGED, (WPARAM)hDlg, 0);
@@ -110,7 +89,6 @@ static BOOL __stdcall PreferencesDialogProc(HWND hDlg, UINT uMsg, WPARAM wParam,
         }
         case IDC_THEME:
         case IDC_CHESSSET:
-        case IDC_MOVELISTNOTATION:
         {
           if (HIWORD(wParam) == CBN_SELCHANGE)
             SendMessage(GetParent(hDlg), PSM_CHANGED, (WPARAM)hDlg, 0);
@@ -118,6 +96,8 @@ static BOOL __stdcall PreferencesDialogProc(HWND hDlg, UINT uMsg, WPARAM wParam,
         }
         case IDC_MANAGETHEMES:
         {
+          PreferencesDialogValues* Values = (PreferencesDialogValues*)GetWindowLong(hDlg, GWL_USERDATA);
+
           if (HIWORD(wParam) == BN_CLICKED)
           {
             /* Get selected theme */
@@ -127,9 +107,9 @@ static BOOL __stdcall PreferencesDialogProc(HWND hDlg, UINT uMsg, WPARAM wParam,
               char* ThemeName = new char[MAX_PATH];
               SendDlgItemMessage(hDlg, IDC_THEME, CB_GETLBTEXT, Index, (LPARAM)ThemeName);
               /* Show the dialog */
-              ShowThemesDialog(hDlg,ThemeName);
+              ShowThemesDialog((HINSTANCE)GetWindowLong(hDlg, GWL_HINSTANCE), hDlg, Values->ThemesDirectory, ThemeName);
               /* Update the theme list */
-              ListThemes(hDlg,IDC_THEME);
+              ListThemes(GetDlgItem(hDlg,IDC_THEME), Values->ThemesDirectory);
               delete[] ThemeName;
             }
           }
@@ -138,27 +118,40 @@ static BOOL __stdcall PreferencesDialogProc(HWND hDlg, UINT uMsg, WPARAM wParam,
         case IDOK:
         case IDAPPLY:
         {
-          /* Apply the preferences */
-          AutomaticUpdate = IsDlgButtonChecked(hDlg, IDC_AUTOUPDATE) == BST_CHECKED;
-          SetAlwaysOnTop(IsDlgButtonChecked(hDlg, IDC_ALWAYSONTOP) == BST_CHECKED);
-          AlwaysVisible = IsDlgButtonChecked(hDlg, IDC_ALWAYSVISIBLE) == BST_CHECKED;
-          AutomaticallySwitchView = IsDlgButtonChecked(hDlg, IDC_AUTOINVERTVIEW) == BST_CHECKED;
-          AlwaysPromoteToQueen = IsDlgButtonChecked(hDlg, IDC_PROMOTETOQUEEN) == BST_CHECKED;
+          PreferencesDialogValues* Values = (PreferencesDialogValues*)GetWindowLong(hDlg, GWL_USERDATA);
+
+          /* Read controls' information */
+          Values->AutomaticUpdate = IsDlgButtonChecked(hDlg, IDC_AUTOUPDATE) == BST_CHECKED;
+          Values->AlwaysOnTop = IsDlgButtonChecked(hDlg, IDC_ALWAYSONTOP) == BST_CHECKED;
+          Values->AlwaysVisible = IsDlgButtonChecked(hDlg, IDC_ALWAYSVISIBLE) == BST_CHECKED;
+          Values->AutomaticallySwitchView = IsDlgButtonChecked(hDlg, IDC_AUTOINVERTVIEW) == BST_CHECKED;
+          Values->AlwaysPromoteToQueen = IsDlgButtonChecked(hDlg, IDC_PROMOTETOQUEEN) == BST_CHECKED;
           int Index = SendDlgItemMessage(hDlg, IDC_THEME, CB_GETCURSEL, 0, 0);
           if (Index >= 0)
           {
-            char* ThemeName = new char[MAX_PATH];
-            SendDlgItemMessage(hDlg, IDC_THEME, CB_GETLBTEXT, Index, (LPARAM)ThemeName);
-            LoadTheme(ThemeName);
-            delete[] ThemeName;
+            char* Str = new char[256];
+            SendDlgItemMessage(hDlg, IDC_THEME, CB_GETLBTEXT, Index, (LPARAM)Str);
+            Values->CurrentTheme = Str;
+            delete[] Str;
           }
-          LoadChessSet(SendDlgItemMessage(hDlg, IDC_CHESSSET, CB_GETCURSEL, 0, 0));
-          hChessBoardPanel->SetShowCoordinates(IsDlgButtonChecked(hDlg, IDC_SHOWCOORDINATES) == BST_CHECKED);
-          hChessBoardPanel->SetShowLastMove(IsDlgButtonChecked(hDlg, IDC_SHOWLASTMOVE) == BST_CHECKED);
-          hChessBoardPanel->SetShowInvalidMoves(IsDlgButtonChecked(hDlg, IDC_SHOWINVALIDMOVES) == BST_CHECKED);
+          Index = SendDlgItemMessage(hDlg, IDC_CHESSSET, CB_GETCURSEL, 0, 0);
+          if (Index >= 0)
+          {
+            char* Str = new char[256];
+            SendDlgItemMessage(hDlg, IDC_CHESSSET, CB_GETLBTEXT, Index, (LPARAM)Str);
+            Values->CurrentChessSet = Str;
+            delete[] Str;
+          }
+          Values->ShowMoveListIcons = IsDlgButtonChecked(hDlg, IDC_SHOWMOVELISTICONS) == BST_CHECKED;
+          Values->BoardCoordinatesVisible = IsDlgButtonChecked(hDlg, IDC_SHOWCOORDINATES) == BST_CHECKED;
+          Values->BoardLastMoveVisible = IsDlgButtonChecked(hDlg, IDC_SHOWLASTMOVE) == BST_CHECKED;
+          Values->BoardInvalidMovesVisible = IsDlgButtonChecked(hDlg, IDC_SHOWINVALIDMOVES) == BST_CHECKED;
+
           /* Close the dialog */
-          if (LOWORD(wParam) == IDOK)
-            SendMessage(hDlg, WM_CLOSE, 0, 0);
+          if (LOWORD(wParam) == IDAPPLY)
+            SendMessage(GetParent(hDlg), WM_APPLYPREFERENCES, (WPARAM)Values, 0);
+          else
+            SendMessage(hDlg, WM_CLOSE, 1, 0);
           break;
         }
         case IDCANCEL:
@@ -178,24 +171,25 @@ static BOOL __stdcall PreferencesDialogProc(HWND hDlg, UINT uMsg, WPARAM wParam,
     }
     case WM_INITDIALOG:
     {
-      /* Initialise the controls */
-      ListThemes(hDlg,IDC_THEME);
-      ListChessSets(hDlg, IDC_CHESSSET);
-      PopulateComboList(hDlg, IDC_MOVELISTNOTATION, "Algebraic;Mixed;Simple");
-      /* Display the preferences */
-      CheckDlgButton(hDlg, IDC_AUTOUPDATE, AutomaticUpdate ? BST_CHECKED : BST_UNCHECKED);
-      CheckDlgButton(hDlg, IDC_ALWAYSONTOP, AlwaysOnTop ? BST_CHECKED : BST_UNCHECKED);
-      CheckDlgButton(hDlg, IDC_ALWAYSVISIBLE, AlwaysVisible ? BST_CHECKED : BST_UNCHECKED);
-      CheckDlgButton(hDlg, IDC_AUTOINVERTVIEW, AutomaticallySwitchView ? BST_CHECKED : BST_UNCHECKED);
-      CheckDlgButton(hDlg, IDC_PROMOTETOQUEEN, AlwaysPromoteToQueen ? BST_CHECKED : BST_UNCHECKED);
-      if (SendDlgItemMessage(hDlg, IDC_THEME, CB_SELECTSTRING, (WPARAM)0, (LPARAM)hChessBoardPanel->GetTheme()->Name.c_str()) == CB_ERR)
-        SetDlgItemText(hDlg, IDC_THEME, hChessBoardPanel->GetTheme()->Name.c_str());
-      ChessSet* CurrentChessSet = ChessSets.Get(ChessSetIndex);
-      if (CurrentChessSet != NULL)
-        SelectComboBoxItem(hDlg, IDC_CHESSSET, CurrentChessSet->FontName);
-      CheckDlgButton(hDlg, IDC_SHOWCOORDINATES, hChessBoardPanel->GetShowCoordinates() ? BST_CHECKED : BST_UNCHECKED);
-      CheckDlgButton(hDlg, IDC_SHOWLASTMOVE, hChessBoardPanel->GetShowLastMove() ? BST_CHECKED : BST_UNCHECKED);
-      CheckDlgButton(hDlg, IDC_SHOWINVALIDMOVES, hChessBoardPanel->GetShowInvalidMoves() ? BST_CHECKED : BST_UNCHECKED);
+      PreferencesDialogValues* Values = (PreferencesDialogValues*)lParam;
+      SetWindowLong(hDlg, GWL_USERDATA, (LPARAM)Values);
+
+      /* Initialize controls */
+      ListThemes(GetDlgItem(hDlg,IDC_THEME), Values->ThemesDirectory);
+      ListChessSets(GetDlgItem(hDlg, IDC_CHESSSET), Values->ChessSets);
+
+      /* Set initial state */
+      CheckDlgButton(hDlg, IDC_AUTOUPDATE, Values->AutomaticUpdate ? BST_CHECKED : BST_UNCHECKED);
+      CheckDlgButton(hDlg, IDC_ALWAYSONTOP, Values->AlwaysOnTop ? BST_CHECKED : BST_UNCHECKED);
+      CheckDlgButton(hDlg, IDC_ALWAYSVISIBLE, Values->AlwaysVisible ? BST_CHECKED : BST_UNCHECKED);
+      CheckDlgButton(hDlg, IDC_AUTOINVERTVIEW, Values->AutomaticallySwitchView ? BST_CHECKED : BST_UNCHECKED);
+      CheckDlgButton(hDlg, IDC_PROMOTETOQUEEN, Values->AlwaysPromoteToQueen ? BST_CHECKED : BST_UNCHECKED);
+      SelectComboBoxItem(hDlg, IDC_THEME, Values->CurrentTheme.c_str());
+      SelectComboBoxItem(hDlg, IDC_CHESSSET, Values->CurrentChessSet.c_str());
+      CheckDlgButton(hDlg, IDC_SHOWMOVELISTICONS, Values->ShowMoveListIcons ? BST_CHECKED : BST_UNCHECKED);
+      CheckDlgButton(hDlg, IDC_SHOWCOORDINATES, Values->BoardCoordinatesVisible ? BST_CHECKED : BST_UNCHECKED);
+      CheckDlgButton(hDlg, IDC_SHOWLASTMOVE, Values->BoardLastMoveVisible ? BST_CHECKED : BST_UNCHECKED);
+      CheckDlgButton(hDlg, IDC_SHOWINVALIDMOVES, Values->BoardInvalidMovesVisible ? BST_CHECKED : BST_UNCHECKED);
       return TRUE;
     }
   }
@@ -204,8 +198,7 @@ static BOOL __stdcall PreferencesDialogProc(HWND hDlg, UINT uMsg, WPARAM wParam,
 
 // PUBLIC FUNCTIONS ------------------------------------------------------------
 
-void ShowPreferencesDialog(HWND hParent)
+int ShowPreferencesDialog(HINSTANCE Instance, HWND hParent, PreferencesDialogValues* Values)
 {
-  HINSTANCE Instance = (hParent != NULL ? (HINSTANCE)GetWindowLong(hParent, GWL_HINSTANCE) : GetModuleHandle(NULL));
-  DialogBox(Instance,MAKEINTRESOURCE(IDD_PREFERENCES),hParent,(DLGPROC)PreferencesDialogProc);
+  return DialogBoxParam(Instance,MAKEINTRESOURCE(IDD_PREFERENCES),hParent,(DLGPROC)PreferencesDialogProc, (LPARAM)Values);
 }

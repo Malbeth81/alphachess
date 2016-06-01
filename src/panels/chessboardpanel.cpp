@@ -21,8 +21,6 @@
 
 const char ClassName[] = "ChessBoardPanel";
 
-extern ChessEngine Chess;
-
 extern char DefaultFontName[];
 
 ATOM ChessBoardPanel::ClassAtom = 0;
@@ -36,16 +34,14 @@ ATOM ChessBoardPanel::ClassAtom = 0;
 
 // PUBLIC FUNCTIONS ------------------------------------------------------------
 
-ChessBoardPanel::ChessBoardPanel(HWND hParent, RECT* R)
+ChessBoardPanel::ChessBoardPanel(HINSTANCE hInstance, HWND hParent, RECT* R)
 {
-  HINSTANCE Instance = (hParent != NULL ? (HINSTANCE)GetWindowLong(hParent, GWL_HINSTANCE) : GetModuleHandle(NULL));
-
-  MovePieceProc = NULL;
-
   Handle = NULL;
-  Set = NULL;
   SelectionCursor = LoadCursor(NULL,IDC_ARROW);
   StandardCursor = SelectionCursor;
+
+  Game = NULL;
+  Set = NULL;
   Theme = NULL;
 
   BorderSize = MinBorderSize;
@@ -70,22 +66,24 @@ ChessBoardPanel::ChessBoardPanel(HWND hParent, RECT* R)
     WNDCLASSEX WndClass;
     WndClass.cbSize = sizeof(WNDCLASSEX);
     WndClass.lpszClassName = ClassName;
-    WndClass.hInstance = Instance;
+    WndClass.hInstance = hInstance;
     WndClass.lpfnWndProc = PanelWindowProc;
     WndClass.style = 0;
     WndClass.hbrBackground = NULL;
     WndClass.hIcon = 0;
     WndClass.hIconSm = 0;
     WndClass.hCursor = NULL;
-    WndClass.lpszMenuName = 0;
+    WndClass.lpszMenuName = NULL;
     WndClass.cbClsExtra = 0;
     WndClass.cbWndExtra = 0;
     ClassAtom = RegisterClassEx(&WndClass);
   }
   /* Create the window */
   if (ClassAtom != 0)
-    CreateWindowEx(0,ClassName,NULL,WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS,
-    R->left,R->top,R->right-R->left,R->bottom-R->top,hParent,NULL,Instance,this);
+  {
+    Handle = CreateWindowEx(0,ClassName,NULL,WS_CHILD|WS_VISIBLE|WS_CLIPSIBLINGS,
+        R->left,R->top,Width,Height,hParent,NULL,hInstance,this);
+  }
 }
 
 ChessBoardPanel::~ChessBoardPanel()
@@ -95,22 +93,14 @@ ChessBoardPanel::~ChessBoardPanel()
     DestroyWindow(Handle);
 }
 
-HWND ChessBoardPanel::GetHandle()
-{
-  return Handle;
-}
-
-void ChessBoardPanel::Invalidate()
-{
-  if (Handle != NULL)
-    InvalidateRect(Handle, NULL, FALSE);
-}
-
-// PUBLIC ACCESS FUNCTIONS -----------------------------------------------------
-
 ChessSet* ChessBoardPanel::GetChessSet()
 {
   return Set;
+}
+
+HWND ChessBoardPanel::GetHandle()
+{
+  return Handle;
 }
 
 bool ChessBoardPanel::GetInvertView()
@@ -153,11 +143,31 @@ const ChessBoardTheme* ChessBoardPanel::GetTheme()
   return Theme;
 }
 
-// PUBLIC MUTATOR FUNCTIONS ----------------------------------------------------
+void ChessBoardPanel::Invalidate()
+{
+  if (Handle != NULL)
+    InvalidateRect(Handle, NULL, FALSE);
+}
+
+bool ChessBoardPanel::IsLocked()
+{
+  return Locked;
+}
+
+bool ChessBoardPanel::IsPaused()
+{
+  return Paused;
+}
 
 void ChessBoardPanel::SetChessSet(ChessSet* NewSet)
 {
   Set = NewSet;
+  Invalidate();
+}
+
+void ChessBoardPanel::SetGame(ChessGame* NewGame)
+{
+  Game = NewGame;
   Invalidate();
 }
 
@@ -185,9 +195,9 @@ void ChessBoardPanel::SetLocked(bool Value)
 
 void ChessBoardPanel::SetPaused(bool Value)
 {
-  SetLocked(Value);
   Paused = Value;
   Invalidate();
+  SetLocked(Value);
 }
 
 void ChessBoardPanel::SetShowCoordinates(bool Value)
@@ -230,20 +240,29 @@ void ChessBoardPanel::DrawBoardIndexes(HDC DC, int X, int Y, bool Vertical)
 {
   if (Theme != NULL)
   {
-    const char* Indexes = (Vertical ? (InvertView ? "12345678" : "87654321") : (InvertView ? "HGFEDCBA" : "ABCDEFGH"));
+    string VerticalIndexes = "12345678";
+    string HorizontalIndexes = "ABCDEFGH";
     SetBkMode(DC,TRANSPARENT);
     SetTextColor(DC, Theme->CoordinatesColor);
-    HFONT OldFont = (HFONT)SelectObject(DC,EasyCreateFont(DC,DefaultFontName,max(int(SquareSize*.20),7),0));
+    HFONT OldFont = (HFONT)SelectObject(DC,EasyCreateFont(DC,DefaultFontName,PixelsToPoints(DC, BorderSize-4),0));
     for (int i=0; i < 8; i++)
     {
-      /* Draw the index */
-      SIZE Size;
-      GetTextExtentPoint32(DC,Indexes,1,&Size);
       if (Vertical)
-        TextOut(DC,X-Size.cx/2,Y+(i)*SquareSize-Size.cy/2,Indexes,1);
+      {
+        /* Draw the vertical indexes */
+        SIZE Size;
+        const char* Str = VerticalIndexes.substr(InvertView ? i : 7-i, 1).c_str();
+        GetTextExtentPoint32(DC,Str,strlen(Str),&Size);
+        TextOut(DC,X-Size.cx/2,Y+(i)*SquareSize-Size.cy/2,Str,strlen(Str));
+      }
       else
-        TextOut(DC,X+(i)*SquareSize-Size.cx/2,Y-Size.cy/2,Indexes,1);
-      Indexes++;
+      {
+        /* Draw the horizontal indexes */
+        SIZE Size;
+        const char* Str = HorizontalIndexes.substr(InvertView ? 7-i : i, 1).c_str();
+        GetTextExtentPoint32(DC,Str,strlen(Str),&Size);
+        TextOut(DC,X+(i)*SquareSize-Size.cx/2,Y-Size.cy/2,Str,strlen(Str));
+      }
     }
     /* Clean up */
     SetBkMode(DC,OPAQUE);
@@ -253,11 +272,11 @@ void ChessBoardPanel::DrawBoardIndexes(HDC DC, int X, int Y, bool Vertical)
 
 void ChessBoardPanel::DrawBoardSquares(HDC DC, int X, int Y)
 {
-  if (Theme != NULL)
+  if (Game != NULL && Theme != NULL)
   {
     COLORREF Color;
     int HighlightWidth = SquareSize/20;
-    const ChessMove* LastMove = Chess.GetMove(Chess.GetMoveCount()-1);
+    const ChessMove* LastMove = Game->GetDisplayedMove();
     /* Draw the board squares */
     for (int i=0; i < 8; i++)
     {
@@ -266,7 +285,7 @@ void ChessBoardPanel::DrawBoardSquares(HDC DC, int X, int Y)
         RECT R = {X+i*SquareSize,Y+j*SquareSize,X+(i+1)*SquareSize,Y+(j+1)*SquareSize};
         Position Pos = MakePos(i,7-j);
         /* Calculate the color for the square */
-        if (!Paused && LastMove != NULL && ShowLastMove && LastMove->To.x == Pos.x && LastMove->To.y == Pos.y)
+        if (LastMove != NULL && ShowLastMove && LastMove->To.x == Pos.x && LastMove->To.y == Pos.y)
           Color = Theme->LastMovedColor;
         else if ((Pos.x-Pos.y)%2 == 0)
           Color = Theme->BlackSquaresColor;
@@ -285,7 +304,7 @@ void ChessBoardPanel::DrawBoardSquares(HDC DC, int X, int Y)
         {
           if (ShowInvalidMoves && SelectedSquare.x >= 0 && SelectedSquare.y >= 0)
           {
-            if (Chess.IsMoveValid(SelectedSquare, HighlightedSquare))
+            if (Game->IsMoveValid(SelectedSquare, HighlightedSquare))
               Color = Theme->ValidMoveColor;
             else
               Color = Theme->InvalidMoveColor;
@@ -312,19 +331,16 @@ void ChessBoardPanel::DrawBoardSquares(HDC DC, int X, int Y)
 
 void ChessBoardPanel::DrawChessPieces(HDC DC, int X, int Y)
 {
-  if (Set != NULL)
+  if (Game != NULL && Set != NULL)
   {
     /* Set the style */
     SetBkMode(DC,TRANSPARENT);
-    HFONT OldFont = (HFONT)SelectObject(DC,EasyCreateFont(DC,Set->FontName,(int)(SquareSize*.75),0));
+    HFONT OldFont = (HFONT)SelectObject(DC,EasyCreateFont(DC,Set->FontName.c_str(),PixelsToPoints(DC, SquareSize-4),0));
     /* Draw the chess piece */
     for (int i=0; i < 8; i++)
       for (int j=0; j < 8; j++)
-      {
-        Position Pos = MakePos(i,7-j);
-        if (SelectedSquare.x != Pos.x || SelectedSquare.y != Pos.y)
-          DrawChessPiece(DC,X+SquareSize*i,Y+SquareSize*j,Chess.GetPiece(Pos));
-      }
+        if (SelectedSquare.x != i || SelectedSquare.y != 7-j)
+          DrawChessPiece(DC,X+SquareSize*i,Y+SquareSize*j,Game->GetPiece(MakePos(i,7-j)));
     /* Draw the selected piece */
     if (SelectedSquare.x >= 0 && SelectedSquare.y >= 0)
     {
@@ -332,7 +348,7 @@ void ChessBoardPanel::DrawChessPieces(HDC DC, int X, int Y)
       GetCursorPos(&Point);
       RECT Rect;
       GetWindowRect(Handle, &Rect);
-      DrawChessPiece(DC,Point.x-Rect.left,Point.y-Rect.top,Chess.GetPiece(SelectedSquare));
+      DrawChessPiece(DC,Point.x-Rect.left,Point.y-Rect.top,Game->GetPiece(SelectedSquare));
     }
     /* Clean up */
     SetBkMode(DC,OPAQUE);
@@ -357,14 +373,14 @@ void ChessBoardPanel::DrawChessPiece(HDC DC, int X, int Y, const ChessPiece* Pie
     }
     /* Draw the piece */
     SIZE Size;
-    GetTextExtentPoint32(DC,&Set->Letters[Index+6],1,&Size);
+    GetTextExtentPoint32(DC,Set->Letters.substr(Index+6,1).c_str(),1,&Size);
     if ((Piece->Color == White && Theme->WhitePiecesStyle != Outline) || (Piece->Color == Black && Theme->BlackPiecesStyle != Outline))
     {
       if (Piece->Color == White)
         SetTextColor(DC, Theme->WhitePiecesColor);
       else
         SetTextColor(DC, Theme->BlackPiecesColor);
-      TextOut(DC,X-Size.cx/2,Y-Size.cy/2,&Set->Letters[Index+6],1);
+      TextOut(DC,X-Size.cx/2,Y-Size.cy/2,Set->Letters.substr(Index+6,1).c_str(),1);
     }
     /* Draw an outline */
     if ((Piece->Color == White && Theme->WhitePiecesStyle != Plain) || (Piece->Color == Black && Theme->BlackPiecesStyle != Plain))
@@ -373,10 +389,8 @@ void ChessBoardPanel::DrawChessPiece(HDC DC, int X, int Y, const ChessPiece* Pie
         SetTextColor(DC, Theme->WhitePiecesOutlineColor);
       else
         SetTextColor(DC, Theme->BlackPiecesOutlineColor);
-      TextOut(DC,X-Size.cx/2,Y-Size.cy/2,&Set->Letters[Index],1);
+      TextOut(DC,X-Size.cx/2,Y-Size.cy/2,Set->Letters.substr(Index,1).c_str(),1);
     }
-    /* Clean up */
-    SetTextColor(DC, 0x000000);
   }
 }
 
@@ -388,7 +402,7 @@ void ChessBoardPanel::DrawPaused(HDC DC)
     SIZE Size;
     SetBkMode(DC,TRANSPARENT);
     /* Draw the text outline */
-    HFONT OldFont = (HFONT)SelectObject(DC,EasyCreateFont(DC,DefaultFontName,max(int(SquareSize*.5),7),0));
+    HFONT OldFont = (HFONT)SelectObject(DC,EasyCreateFont(DC,DefaultFontName,PixelsToPoints(DC, SquareSize-4),0));
     HPEN OldPen = (HPEN)SelectObject(DC,CreatePen(PS_SOLID,int(SquareSize*.1),Theme->BorderColor));
     GetTextExtentPoint32(DC,Str,strlen(Str),&Size);
     BeginPath(DC);
@@ -397,7 +411,7 @@ void ChessBoardPanel::DrawPaused(HDC DC)
     StrokePath(DC);
     /* Draw the text */
     SetTextColor(DC, Theme->CoordinatesColor);
-    DeleteObject(SelectObject(DC,EasyCreateFont(DC,DefaultFontName,max(int(SquareSize*.5),7),0)));
+    DeleteObject(SelectObject(DC,EasyCreateFont(DC,DefaultFontName,PixelsToPoints(DC, SquareSize-4),0)));
     GetTextExtentPoint32(DC,Str,strlen(Str),&Size);
     TextOut(DC,(min(Width,Height)-Size.cx)/2,(min(Width,Height)-Size.cy)/2,Str,strlen(Str));
     /* Clean up */
@@ -427,10 +441,10 @@ Position ChessBoardPanel::MakePos(int X, int Y)
 
 void ChessBoardPanel::MouseDown(int x, int y)
 {
-  if (!Locked)
+  if (Game != NULL && !Locked)
   {
     if (HighlightedSquare.x >= 0 && HighlightedSquare.x < 8 && HighlightedSquare.y >= 0 && HighlightedSquare.y < 8)
-      if (SelectedSquare.x == -1 && SelectedSquare.y == -1 && Chess.GetPiece(HighlightedSquare) != NULL && Chess.GetPiece(HighlightedSquare)->Color == Chess.GetActivePlayer())
+      if (SelectedSquare.x == -1 && SelectedSquare.y == -1 && Game->GetPiece(HighlightedSquare) != NULL && Game->GetPiece(HighlightedSquare)->Color == Game->GetActivePlayer())
       {
         /* Select a piece on the board */
         SelectedSquare = HighlightedSquare;
@@ -444,15 +458,14 @@ void ChessBoardPanel::MouseDown(int x, int y)
 
 void ChessBoardPanel::MouseUp(int x, int y)
 {
-  if (!Locked)
+  if (Game != NULL && !Locked)
   {
     bool PieceMoved = true; // Prevent from updating the board if the piece was not moved
     if (HighlightedSquare.x >= 0 && HighlightedSquare.x < 8 && HighlightedSquare.y >= 0 && HighlightedSquare.y < 8)
       if (SelectedSquare.x >= 0 && SelectedSquare.x < 8 && SelectedSquare.y >= 0 && SelectedSquare.y < 8)
         if (HighlightedSquare.x != SelectedSquare.x || HighlightedSquare.y != SelectedSquare.y)
           /* Move the selected piece to the highlighted square */
-          if (MovePieceProc != NULL)
-            PieceMoved = (*MovePieceProc)(SelectedSquare, HighlightedSquare);
+          PieceMoved = SendMessage(GetParent(Handle), WM_CHESSPIECEMOVED, (WPARAM)&SelectedSquare, (LPARAM)&HighlightedSquare);
     if (MouseMoved)
     {
       if (PieceMoved)
@@ -523,10 +536,9 @@ void ChessBoardPanel::Paint()
       /* Draw the board squares */
       DrawBoardSquares(Buffer, BorderSize, BorderSize);
       /* Draw the chess pieces */
+      DrawChessPieces(Buffer, BorderSize+SquareSize/2, BorderSize+SquareSize/2);
       if (Paused)
         DrawPaused(Buffer);
-      else
-        DrawChessPieces(Buffer, BorderSize+SquareSize/2, BorderSize+SquareSize/2);
       /* Draw the buffer into the destination DC */
       BitBlt(DC,0,0,Width,Height,Buffer,0,0,SRCCOPY);
       /* Cleanup */
@@ -558,14 +570,8 @@ LRESULT __stdcall ChessBoardPanel::PanelWindowProc(HWND hWnd, UINT Msg, WPARAM w
     case WM_CREATE:
     {
       CREATESTRUCT* Params = (CREATESTRUCT*)lParam;
-      ChessBoardPanel* Panel = (ChessBoardPanel*)Params->lpCreateParams;
+      ChessBoardPanel* Panel = (ChessBoardPanel*)(Params->lpCreateParams);
       SetWindowLong(hWnd, GWL_USERDATA, (LPARAM)Panel);
-
-      if (Panel != NULL)
-      {
-        Panel->Handle = hWnd;
-      }
-
       return 0;
     }
     case WM_ERASEBKGND:
@@ -577,9 +583,10 @@ LRESULT __stdcall ChessBoardPanel::PanelWindowProc(HWND hWnd, UINT Msg, WPARAM w
     case WM_RBUTTONDOWN:
     {
       ChessBoardPanel* Panel = (ChessBoardPanel*)GetWindowLong(hWnd, GWL_USERDATA);
-
       if (Panel != NULL)
+      {
         Panel->MouseDown((int)LOWORD(lParam), (int)HIWORD(lParam));
+      }
       return 0;
     }
     case WM_LBUTTONUP:
@@ -587,33 +594,38 @@ LRESULT __stdcall ChessBoardPanel::PanelWindowProc(HWND hWnd, UINT Msg, WPARAM w
     case WM_RBUTTONUP:
     {
       ChessBoardPanel* Panel = (ChessBoardPanel*)GetWindowLong(hWnd, GWL_USERDATA);
-
       if (Panel != NULL)
+      {
         Panel->MouseUp((int)LOWORD(lParam), (int)HIWORD(lParam));
+      }
       return 0;
     }
     case WM_MOUSEMOVE:
     {
       ChessBoardPanel* Panel = (ChessBoardPanel*)GetWindowLong(hWnd, GWL_USERDATA);
-
       if (Panel != NULL)
+      {
         Panel->MouseMove((int)LOWORD(lParam), (int)HIWORD(lParam));
+      }
       return 0;
     }
     case WM_PAINT:
     {
       ChessBoardPanel* Panel = (ChessBoardPanel*)GetWindowLong(hWnd, GWL_USERDATA);
-
       if (Panel != NULL)
+      {
         Panel->Paint();
+      }
       return 0;
     }
     case WM_SIZE:
     {
       ChessBoardPanel* Panel = (ChessBoardPanel*)GetWindowLong(hWnd, GWL_USERDATA);
-
-      if (Panel != NULL && LOWORD(lParam) != Panel->Width || HIWORD(lParam) != Panel->Height)
-          Panel->UpdateSize((short)LOWORD(lParam), (short)HIWORD(lParam));
+      if (Panel != NULL)
+      {
+        if (LOWORD(lParam) != Panel->Width || HIWORD(lParam) != Panel->Height)
+            Panel->UpdateSize((short)LOWORD(lParam), (short)HIWORD(lParam));
+      }
       return 0;
     }
   }

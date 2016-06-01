@@ -7,18 +7,18 @@ TARGET = bin\alphachess.exe
 all: $(TARGET)
 
 # Create target application
-$(TARGET): obj\main.o obj\menu.o obj\chessai.o obj\chessboard.o obj\chessgame.o obj\chessengine.o obj\aboutdialog.o obj\gamehistorydialog.o obj\inputdialog.o obj\localgamedialog.o obj\networkgamedialog.o obj\preferencesdialog.o obj\promotiondialog.o obj\themesdialog.o obj\gameclient.o obj\capturepanel.o obj\chatpanel.o obj\chessboardpanel.o obj\movelistpanel.o obj\roompanel.o obj\playerpanel.o res\resource.res
+$(TARGET): obj\main.o obj\alphachess.o obj\chessai.o obj\chessboard.o obj\chessgame.o obj\aboutdialog.o obj\savedgamesdialog.o obj\inputdialog.o obj\localgamedialog.o obj\networkgamedialog.o obj\preferencesdialog.o  obj\themesdialog.o obj\gameclient.o obj\capturepanel.o obj\chatpanel.o obj\chessboardpanel.o obj\historypanel.o obj\roompanel.o obj\playerpanel.o res\resources.res
 	$(GCC) -mwindows -o $@ $^ -l ws2_32
 
-#Resource
-res\resource.res: res\resource.rc
+#Resources
+res\resources.res: res\resources.rc
 	windres.exe --input-format=rc -O coff -o $@ -i $<
 
 #Root
-obj\main.o: src\main.cpp src\chessset.h src\chessboardtheme.h src\gameinfo.h src\resource.h
+obj\main.o: src\main.cpp
 	$(GCC) $(FLAGS) -o $@ -c $<
 
-obj\menu.o: src\menu.cpp src\menu.h
+obj\alphachess.o: src\alphachess.cpp src\alphachess.h src\theme.h src\resource.h
 	$(GCC) $(FLAGS) -o $@ -c $<
 
 obj\gameclient.o: src\gameclient.cpp src\gameclient.h
@@ -34,14 +34,11 @@ obj\chessboard.o: src\chess\chessboard.cpp src\chess\chessboard.h
 obj\chessgame.o: src\chess\chessgame.cpp src\chess\chessgame.h
 	$(GCC) $(FLAGS) -o $@ -c $<
 
-obj\chessengine.o: src\chess\chessengine.cpp src\chess\chessengine.h
-	$(GCC) $(FLAGS) -o $@ -c $<
-
 #Dialogs
 obj\aboutdialog.o: src\dialogs\aboutdialog.cpp src\dialogs\aboutdialog.h
 	$(GCC) $(FLAGS) -o $@ -c $<
 
-obj\gamehistorydialog.o: src\dialogs\gamehistorydialog.cpp src\dialogs\gamehistorydialog.h
+obj\savedgamesdialog.o: src\dialogs\savedgamesdialog.cpp src\dialogs\savedgamesdialog.h
 	$(GCC) $(FLAGS) -o $@ -c $<
 
 obj\inputdialog.o: src\dialogs\inputdialog.cpp src\dialogs\inputdialog.h
@@ -72,7 +69,7 @@ obj\chatpanel.o: src\panels\chatpanel.cpp src\panels\chatpanel.h
 obj\chessboardpanel.o: src\panels\chessboardpanel.cpp src\panels\chessboardpanel.h
 	$(GCC) $(FLAGS) -o $@ -c $<
 
-obj\movelistpanel.o: src\panels\movelistpanel.cpp src\panels\movelistpanel.h
+obj\historypanel.o: src\panels\historypanel.cpp src\panels\historypanel.h
 	$(GCC) $(FLAGS) -o $@ -c $<
 
 obj\roompanel.o: src\panels\roompanel.cpp src\panels\roompanel.h

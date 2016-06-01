@@ -22,10 +22,6 @@
 
 #include "chessgame.h"
 
-#if !defined INFINITY
-  #define INFINITY 32767
-#endif
-
 //struct HashCode
 //{
 //  unsigned int Code;

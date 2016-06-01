@@ -19,19 +19,6 @@
 */
 #include "chessboard.h"
 
-#ifndef NULL
-  #define NULL 0
-#endif
-#ifndef abs
-  #define abs(a) ((a) < 0 ? -(a) : (a))
-#endif
-#ifndef max
-  #define max(a,b) (((a) > (b)) ? (a) : (b))
-#endif
-#ifndef min
-  #define min(a,b) (((a) < (b)) ? (a) : (b))
-#endif
-
 // Public function -------------------------------------------------------------
 
 ChessBoard::ChessBoard()
@@ -78,6 +65,15 @@ void ChessBoard::Assign(ChessBoard* Board)
 {
   for (int i=0; i < 8; i++)
     for (int j=0; j < 8; j++)
+      Cases[i][j] = Board->Cases[i][j];
+  WhiteKingPos = Board->WhiteKingPos;
+  BlackKingPos = Board->BlackKingPos;
+}
+
+void ChessBoard::Copy(ChessBoard* Board)
+{
+  for (int i=0; i < 8; i++)
+    for (int j=0; j < 8; j++)
       if (Board->Cases[i][j] != NULL)
         Cases[i][j] = new ChessPiece(Board->Cases[i][j]->Type,Board->Cases[i][j]->Color,Board->Cases[i][j]->TimesMoved);
       else if (Cases[i][j] != NULL)
@@ -103,6 +99,26 @@ void ChessBoard::Clear()
   WhiteKingPos.y = -1;
   BlackKingPos.x = -1;
   BlackKingPos.y = -1;
+}
+
+Position ChessBoard::FindStartingPos(const Position From, const Position To, const ChessPieceType Type, const ChessPieceColor Color)
+{
+  Position P;
+  if (IsPositionValid(To))
+  {
+    for (P.x=0; P.x < 8; P.x++)
+      if (From.x < 0 || From.x > 7 || From.x == P.x)
+        for (P.y=0; P.y < 8; P.y++)
+          if (From.y < 0 || From.y > 7 || From.y == P.y)
+          {
+            ChessPiece* Piece = GetPiece(P);
+            if (Piece != NULL && Piece->Type == Type && Piece->Color == Color && IsPieceMovementValid(Piece,P,To) && IsMovePossible(P,To))
+              return P;
+          }
+  }
+  P.x = -1;
+  P.y = -1;
+  return P;
 }
 
 ChessPiece* ChessBoard::GetPiece(const Position Pos)
@@ -442,7 +458,7 @@ bool ChessBoard::IsPositionValid(const Position Pos)
   return (Pos.x >= 0 && Pos.x < 8 && Pos.y >= 0 && Pos.y < 8);
 }
 
-ChessPiece* ChessBoard::MovePiece(Position From, Position To, bool& EnPassant)
+ChessPiece* ChessBoard::MovePiece(const Position From, const Position To, bool& EnPassant)
 {
   if (IsPositionValid(From) && IsPositionValid(To))
   {
@@ -493,7 +509,7 @@ ChessPiece* ChessBoard::MovePiece(Position From, Position To, bool& EnPassant)
   return NULL;
 }
 
-void ChessBoard::MoveBackPiece(const Position From, const Position To, ChessPiece* CapturedPiece, bool EnPassant)
+void ChessBoard::MoveBackPiece(const Position From, const Position To, ChessPiece* CapturedPiece, const bool EnPassant)
 {
   if (IsPositionValid(From) && IsPositionValid(To))
   {
@@ -523,19 +539,19 @@ void ChessBoard::MoveBackPiece(const Position From, const Position To, ChessPiec
         /* Move back the rook if the king castled */
         if (abs(To.x-From.x) == 2)
         {
-          if (From.x == 2)
+          if (To.x == 2)
           {
-            if (Cases[0][From.y] != NULL)
-              delete Cases[0][From.y];
-            Cases[0][From.y] = Cases[From.x+1][From.y];
-            Cases[From.x+1][From.y] = NULL;
+            if (Cases[0][To.y] != NULL)
+              delete Cases[0][To.y];
+            Cases[0][To.y] = Cases[To.x+1][To.y];
+            Cases[To.x+1][To.y] = NULL;
           }
-          else if (From.x == 6)
+          else if (To.x == 6)
           {
-            if (Cases[7][From.y] != NULL)
-              delete Cases[7][From.y];
-            Cases[7][From.y] = Cases[From.x-1][From.y];
-            Cases[From.x-1][From.y] = NULL;
+            if (Cases[7][To.y] != NULL)
+              delete Cases[7][To.y];
+            Cases[7][To.y] = Cases[To.x-1][To.y];
+            Cases[To.x-1][To.y] = NULL;
           }
         }
       }

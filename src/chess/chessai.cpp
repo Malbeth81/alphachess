@@ -18,14 +18,14 @@ ChessAi::~ChessAi()
 ChessAiMove* ChessAi::Execute(ChessGame* Game, int Depth, int Window)
 {
   ChessAiMove* Result = NULL;
-  Board.Assign(&(Game->Board));
-  Color = Game->ActivePlayer;
+  //Board.Copy(&(Game->Board));
+  Color = Game->GetActivePlayer();
   /* Get a list of all the possible moves */
   LinkedList<ChessAiMove>* Moves = CreateMoveList();
   if (Moves != NULL)
   {
-    int Alpha = -INFINITY;
-    int Beta = INFINITY;
+    int Alpha = INT_MIN;
+    int Beta = INT_MAX;
     /* Iteratively evaluate the move list */
     for (int i=2; i <= Depth; i++)
     {
@@ -223,7 +223,7 @@ void ChessAi::EvaluateMoveList(LinkedList<ChessAiMove>* Moves, int Depth, int Al
 {
   if (Moves != NULL)
   {
-    int BestValue = -INFINITY;
+    int BestValue = INT_MIN;
     /* Evaluate every move */
     ChessAiMove* Move = Moves->GetFirst();
     while (Move != NULL)

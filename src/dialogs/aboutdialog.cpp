@@ -1,7 +1,7 @@
 /*
 * AboutDialog.cpp - A dialog showing information about the application.
 *
-* Copyright (C) 2007-2009 Marc-André Lamothe.
+* Copyright (C) 2007-2010 Marc-André Lamothe.
 *
 * This program is free software; you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -18,8 +18,6 @@
 * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 */
 #include "aboutdialog.h"
-
-#include "../resource.h"
 
 static HCURSOR LinkCursor = LoadCursor(NULL, MAKEINTRESOURCE(32649));
 static LONG DefaultStaticWndProc;
@@ -67,7 +65,7 @@ static INT_PTR __stdcall AboutDialogProc(HWND hDlg, UINT uMsg, WPARAM wParam, LP
         case IDCANCEL:        // Generic message sent by IsDialogMessage for Esc key
         case IDOK:
         {
-          SendMessage(hDlg, WM_CLOSE, 0, 0);
+          PostMessage(hDlg, WM_CLOSE, 0, 0);
           break;
         }
       }
@@ -75,17 +73,18 @@ static INT_PTR __stdcall AboutDialogProc(HWND hDlg, UINT uMsg, WPARAM wParam, LP
     }
     case WM_CLOSE:
     {
+      /* Close the dialog */
       EndDialog(hDlg, wParam);
       return TRUE;
     }
     case WM_INITDIALOG:
     {
-      DefaultStaticWndProc = SetWindowLong(GetDlgItem(hDlg, IDC_URL), GWL_WNDPROC, (LONG)&StaticWndProc);
+      /* Initialize controls */
       DC = GetDC(hDlg);
-      char* Font = new char[13];
-      strcpy(Font,"MS Shell Dlg");
-      SendDlgItemMessage(hDlg, IDC_URL, WM_SETFONT, (WPARAM)EasyCreateFont(DC, Font, 8, fsUnderline), 0);
-      delete[] Font;
+      SendDlgItemMessage(hDlg, IDC_APPLICATIONNAME, WM_SETFONT, (WPARAM)EasyCreateFont(DC, "MS Shell Dlg", 14, fsBold), 0);
+      SendDlgItemMessage(hDlg, IDC_APPLICATIONVERSION, WM_SETFONT, (WPARAM)EasyCreateFont(DC, "MS Shell Dlg", 9, fsBold), 0);
+      DefaultStaticWndProc = SetWindowLong(GetDlgItem(hDlg, IDC_URL), GWL_WNDPROC, (LONG)&StaticWndProc);
+      SendDlgItemMessage(hDlg, IDC_URL, WM_SETFONT, (WPARAM)EasyCreateFont(DC, "MS Shell Dlg", 8, fsUnderline), 0);
       ReleaseDC(hDlg, DC);
       return TRUE;
     }
@@ -95,8 +94,7 @@ static INT_PTR __stdcall AboutDialogProc(HWND hDlg, UINT uMsg, WPARAM wParam, LP
 
 // Public functions ------------------------------------------------------------
 
-void ShowAboutDialog(HWND hParent)
+void ShowAboutDialog(HINSTANCE Instance, HWND hParent)
 {
-  HINSTANCE Instance = (hParent != NULL ? (HINSTANCE)GetWindowLong(hParent, GWL_HINSTANCE) : GetModuleHandle(NULL));
   DialogBox(Instance, MAKEINTRESOURCE(IDD_ABOUT), hParent, (DLGPROC)AboutDialogProc);
 }

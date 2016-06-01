@@ -1,7 +1,7 @@
 /*
 * PreferencesDialog.h - A dialog allowing the user to modify some settings.
 *
-* Copyright (C) 2007-2009 Marc-André Lamothe.
+* Copyright (C) 2007-2010 Marc-André Lamothe.
 *
 * This program is free software; you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -20,8 +20,34 @@
 #ifndef PREFERENCESDIALOG_H_
 #define PREFERENCESDIALOG_H_
 
+#include "../resource.h"
+#include "themesdialog.h"
+#include <winutils.h>
 #include <windows.h>
 
-void ShowPreferencesDialog(HWND hWindow);
+#define WM_APPLYPREFERENCES WM_USER+507
+
+struct PreferencesDialogValues
+{
+  LinkedList<ChessSet>* ChessSets;
+  string ThemesDirectory;
+
+  bool AutomaticUpdate;
+  bool AlwaysOnTop;
+  bool AlwaysVisible;
+  bool AutomaticallySwitchView;
+  bool AlwaysPromoteToQueen;
+  bool PlayersInfoVisible;
+  bool CaptureListVisible;
+  bool MoveListVisible;
+  bool BoardCoordinatesVisible;
+  bool BoardLastMoveVisible;
+  bool BoardInvalidMovesVisible;
+  string CurrentChessSet;
+  string CurrentTheme;
+  bool ShowMoveListIcons;
+};
+
+int ShowPreferencesDialog(HINSTANCE Instance, HWND hWindow, PreferencesDialogValues* Values);
 
 #endif

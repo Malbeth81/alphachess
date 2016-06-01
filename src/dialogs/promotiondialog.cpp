@@ -1,7 +1,7 @@
-/*
+w/*
 * PromotionDialog.cpp - A dialog that allows to choose between 4 piece type.
 *
-* Copyright (C) 2007-2009 Marc-André Lamothe.
+* Copyright (C) 2007-2010 Marc-André Lamothe.
 *
 * This program is free software; you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -19,8 +19,6 @@
 */
 #include "promotiondialog.h"
 
-#include "../resource.h"
-
 static ChessSet* CurSet;
 static int SelectedPiece;
 
@@ -33,11 +31,11 @@ static void DrawChessPiece(HDC DC, int X, int Y, int Piece)
     /* Set the style */
     SetBkMode(DC,TRANSPARENT);
     SetTextColor(DC, GetSysColor(COLOR_BTNTEXT));
-    HFONT OldFont = (HFONT)SelectObject(DC,EasyCreateFont(DC,CurSet->FontName,32,0));
+    HFONT OldFont = (HFONT)SelectObject(DC,EasyCreateFont(DC,CurSet->FontName.c_str(),32,0));
     /* Draw the piece */
     SIZE Size;
-    GetTextExtentPoint32(DC,&CurSet->Letters[Piece],1,&Size);
-    TextOut(DC,X-Size.cx/2,Y-Size.cy/2,&CurSet->Letters[Piece],1);
+    GetTextExtentPoint32(DC,CurSet->Letters.substr(Piece,1).c_str(),1,&Size);
+    TextOut(DC,X-Size.cx/2,Y-Size.cy/2,CurSet->Letters.substr(Piece,1).c_str(),1);
     /* Clean up */
     SetBkMode(DC,OPAQUE);
     DeleteObject(SelectObject(DC,OldFont));
@@ -58,25 +56,25 @@ static INT_PTR __stdcall PromotionDialogProc(HWND hDlg, UINT uMsg, WPARAM wParam
         case IDC_KNIGHT:
         {
           SelectedPiece = 1;
-          SendMessage(hDlg, WM_CLOSE, 0, 0);
+          SendMessage(hDlg, WM_CLOSE, 1, 0);
           break;
         }
         case IDC_BISHOP:
         {
           SelectedPiece = 2;
-          SendMessage(hDlg, WM_CLOSE, 0, 0);
+          SendMessage(hDlg, WM_CLOSE, 1, 0);
           break;
         }
         case IDC_ROOK:
         {
           SelectedPiece = 3;
-          SendMessage(hDlg, WM_CLOSE, 0, 0);
+          SendMessage(hDlg, WM_CLOSE, 1, 0);
           break;
         }
         case IDC_QUEEN:
         {
           SelectedPiece = 4;
-          SendMessage(hDlg, WM_CLOSE, 0, 0);
+          SendMessage(hDlg, WM_CLOSE, 1, 0);
           break;
         }
       }
@@ -94,6 +92,7 @@ static INT_PTR __stdcall PromotionDialogProc(HWND hDlg, UINT uMsg, WPARAM wParam
       DrawCustomButton(GetDlgItem(hDlg, (UINT)wParam), (LPDRAWITEMSTRUCT)lParam);
       /* Draw the chess piece */
       DrawChessPiece(DrawStruct->hDC,DrawStruct->rcItem.left+(DrawStruct->rcItem.right-DrawStruct->rcItem.left)/2,DrawStruct->rcItem.top+(DrawStruct->rcItem.bottom-DrawStruct->rcItem.top)/2,(wParam == IDC_QUEEN ? 1 : (wParam == IDC_ROOK ? 2 : (wParam == IDC_BISHOP ? 3 : 4))));
+      return TRUE
     }
     case WM_INITDIALOG:
     {
@@ -111,9 +110,8 @@ static INT_PTR __stdcall PromotionDialogProc(HWND hDlg, UINT uMsg, WPARAM wParam
 
 // Public functions ------------------------------------------------------------
 
-int ShowPromotionDialog(HWND hParent, ChessSet* Set)
+int ShowPromotionDialog(HINSTANCE Instance, HWND hParent, ChessSet* Set)
 {
-  HINSTANCE Instance = (hParent != NULL ? (HINSTANCE)GetWindowLong(hParent, GWL_HINSTANCE) : GetModuleHandle(NULL));
   CurSet = Set;
   SelectedPiece = 1;
   DialogBox(Instance, MAKEINTRESOURCE(IDD_PROMOTION), hParent, (DLGPROC)PromotionDialogProc);

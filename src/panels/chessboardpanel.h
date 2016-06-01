@@ -20,30 +20,27 @@
 #ifndef CHESSBOARDPANEL_H_
 #define CHESSBOARDPANEL_H_
 
+#include "../chess/chessgame.h"
+#include "../resource.h"
+#include "../theme.h"
 #include <math.h>
 #include <winutils.h>
 #include <windows.h>
-#include "../chessboardtheme.h"
-#include "../chessset.h"
-#include "../chess/chessengine.h"
 
 #define MinBorderSize 10
 #define MinSquareSize 20
 #define MinBoardSize MinBorderSize*2+MinSquareSize*8
 
-typedef bool (__stdcall *MOVEPIECEPROC)(Position From, Position To);
+#define WM_CHESSPIECEMOVED WM_USER+501
 
 class ChessBoardPanel
 {
 public:
-  MOVEPIECEPROC MovePieceProc;
-
-  ChessBoardPanel(HWND hParent, RECT* R);
+  ChessBoardPanel(HINSTANCE hInstance, HWND hParent, RECT* R);
   ~ChessBoardPanel();
-  HWND GetHandle();
-  void Invalidate();
 
   ChessSet* GetChessSet();
+  HWND GetHandle();
   bool GetInvertView();
   bool GetShowCoordinates();
   bool GetShowLastMove();
@@ -52,8 +49,11 @@ public:
   HCURSOR GetStandardCursor();
   HCURSOR GetSelectionCursor();
   const ChessBoardTheme* GetTheme();
-
+  void Invalidate();
+  bool IsLocked();
+  bool IsPaused();
   void SetChessSet(ChessSet* NewSet);
+  void SetGame(ChessGame* NewGame);
   void SetInvertView(bool Value);
   void SetLocked(bool Value);
   void SetPaused(bool Value);
@@ -67,9 +67,11 @@ private:
   static ATOM ClassAtom;
 
   HWND Handle;
-  ChessSet* Set;
   HCURSOR SelectionCursor;
   HCURSOR StandardCursor;
+
+  ChessGame* Game;
+  ChessSet* Set;
   ChessBoardTheme* Theme;
 
   int BorderSize;

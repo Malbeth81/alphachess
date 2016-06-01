@@ -1,7 +1,7 @@
 /*
 * ThemesDialog.h
 *
-* Copyright (C) 2007-2009 Marc-André Lamothe.
+* Copyright (C) 2007-2010 Marc-André Lamothe.
 *
 * This program is free software; you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -20,6 +20,9 @@
 #ifndef THEMESDIALOG_H_
 #define THEMESDIALOG_H_
 
+#include "../resource.h"
+#include "../theme.h"
+#include "inputdialog.h"
 #include <colorchooser.h>
 #include <linkedlist.h>
 #include <string>
@@ -28,6 +31,6 @@
 
 using namespace std;
 
-void ShowThemesDialog(HWND hWindow, string Theme);
+void ShowThemesDialog(HINSTANCE Instance, HWND hWindow, string ThemesDirectory, string SelectedTheme);
 
 #endif

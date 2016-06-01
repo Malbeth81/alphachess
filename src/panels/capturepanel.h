@@ -20,29 +20,30 @@
 #ifndef CAPTUREPANEL_H_
 #define CAPTUREPANEL_H_
 
+#include "..\chess\chessgame.h"
+#include "..\theme.h"
 #include <winutils.h>
 #include <windows.h>
-#include "../chessset.h"
-#include "../chess/chessengine.h"
 
 class CapturePanel
 {
 public:
-  CapturePanel(HWND hParent, RECT* R);
+  CapturePanel(HINSTANCE hInstance, HWND hParent, RECT* R);
   ~CapturePanel();
 
   HWND GetHandle();
   void Invalidate();
   void SetChessSet(ChessSet* NewSet);
+  void SetGame(ChessGame* NewGame);
 private:
   static ATOM ClassAtom;
 
   HWND Handle;
+  ChessGame* Game;
+  ChessSet* Set;
 
   int Height;
   int Width;
-
-  ChessSet* Set;
 
   /* GUI functions */
   void DrawChessPieces(HDC DC);

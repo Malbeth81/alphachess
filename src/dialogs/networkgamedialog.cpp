@@ -1,7 +1,7 @@
 /*
 * NetworkGameDialog.cpp
 *
-* Copyright (C) 2007-2009 Marc-André Lamothe.
+* Copyright (C) 2007-2010 Marc-André Lamothe.
 *
 * This program is free software; you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -19,138 +19,134 @@
 */
 #include "networkgamedialog.h"
 
-#include "inputdialog.h"
-#include "../resource.h"
-#include "../chess/chessengine.h"
-#include "../panels/roompanel.h"
-
-static HWND hDialog = NULL;
-
-extern ChessEngine Chess;
-extern GameClient* NetworkClient;
-extern RoomPanel* hRoomPanel;
-
-extern char NetworkPlayerName[60];
-
 // WINAPI FUNCTIONS ------------------------------------------------------------
 
 static INT_PTR __stdcall NetworkGameDialogProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
   switch (uMsg)
   {
+    case WM_ADDROOMTOLIST:
+    {
+      NetworkGameRoomInfo* RoomInfo = (NetworkGameRoomInfo*)wParam;
+      HWND Listview = GetDlgItem(hDlg, IDC_GAMEROOMLIST);
+      /* Add a new item to the list view */
+      LVITEM ItemInfo;
+      ItemInfo.mask = 0;
+      ItemInfo.iItem = ListView_GetItemCount(Listview);
+      ItemInfo.iSubItem = 0;
+      ListView_InsertItem(Listview,&ItemInfo);
+      /* Set the item's other attributes */
+      char* Str = inttostr(RoomInfo->RoomId);
+      ListView_SetItemText(Listview,ItemInfo.iItem,0,Str);
+      delete[] Str;
+      ListView_SetItemText(Listview,ItemInfo.iItem,1,(CHAR*)RoomInfo->Name.c_str());
+      Str = inttostr(RoomInfo->PlayerCount);
+      ListView_SetItemText(Listview,ItemInfo.iItem,2,Str);
+      delete[] Str;
+      /* Select the first room */
+      if (ItemInfo.iItem == 0)
+      {
+        ItemInfo.mask = LVIF_STATE;
+        ItemInfo.stateMask = LVIS_SELECTED | LVIS_FOCUSED;
+        ItemInfo.state = LVIS_SELECTED | LVIS_FOCUSED;
+        SendMessage(Listview,LVM_SETITEMSTATE,0,(LPARAM)&ItemInfo);
+      }
+    }
     case WM_COMMAND: /* Process control messages */
+    {
       switch (LOWORD(wParam))
       {
-        case IDC_NEWGAMEROOM:
+        case IDC_CREATEGAMEROOM:
         {
-          /* Confirmation */
-          if (Chess.GetGameState() == Started || Chess.GetGameState() == Paused)
-            if (MessageBox(hDlg,"You have a game in progress, are you sure you want to start a new network game?","Start a new network game",MB_OKCANCEL|MB_ICONQUESTION) == IDCANCEL)
-              break;
-          char* RoomName = InputDialog(hDlg, "Start a new game", "Enter the name of the new game room:");
-          if (RoomName != NULL)
+          NetworkGameDialogValues* Values = (NetworkGameDialogValues*)GetWindowLong(hDlg, GWL_USERDATA);
+
+          /* Read controls' information */
+          char* PlayerName = GetWindowText(GetDlgItem(hDlg,IDC_PLAYERNAME));
+          string RoomName;
+          if (strlen(PlayerName) && InputDialog((HINSTANCE)GetWindowLong(hDlg, GWL_HINSTANCE), hDlg, "Start a new game", "Enter the name of the new game room:", &RoomName) && RoomName.length() > 0)
           {
-            if (strlen(RoomName))
-            {
-              char* Str = GetWindowText(GetDlgItem(hDlg,IDC_PLAYERNAME));
-              strncpy(NetworkPlayerName,Str,60);
-              delete[] Str;
-              if (strlen(NetworkPlayerName))
-              {
-                /* Set the player's name */
-                NetworkClient->SetPlayerName(NetworkPlayerName);
-                /* Create the room */
-                if (NetworkClient->CreateRoom(RoomName))
-                {
-                  hRoomPanel->SetRoomName(RoomName);
-                  /* Dialog will be closed when confirmation is received from the server */
-                  SetCursor(LoadCursor(NULL,IDC_WAIT));
-                }
-              }
-              // Don't delete RoomName, Room panel will do it when it is replaced
-            }
-            else
-              MessageBox(hDlg, "Error", "Error", MB_OK);
+            Values->PlayerName = PlayerName;
+            Values->RoomId = 0;
+            Values->RoomName = RoomName;
+
+            /* Close dialog */
+            PostMessage(hDlg,WM_CLOSE,1,0);
           }
+          delete[] PlayerName;
           break;
         }
         case IDC_REFRESHGAMEROOMS:
         {
           /* Update the game room list */
           ListView_DeleteAllItems(GetDlgItem(hDlg, IDC_GAMEROOMLIST));
-          NetworkClient->UpdateRoomList();
+          SendMessage(GetParent(hDlg), WM_UPDATEROOMLIST, (WPARAM)hDlg, 0);
           break;
         }
         case IDOK:
         {
-          /* Confirmation */
-          if (Chess.GetGameState() == Started || Chess.GetGameState() == Paused)
-            if (MessageBox(hDlg,"You have a game in progress, are you sure you want to join a new game?","Join a network game",MB_OKCANCEL|MB_ICONQUESTION) == IDCANCEL)
-              break;
-          char* Str = GetWindowText(GetDlgItem(hDlg,IDC_PLAYERNAME));
-          strncpy(NetworkPlayerName,Str,60);
-          delete[] Str;
-          if (strlen(NetworkPlayerName))
+          NetworkGameDialogValues* Values = (NetworkGameDialogValues*)GetWindowLong(hDlg, GWL_USERDATA);
+
+          /* Get index of selected room */
+          int Index = SendMessage(GetDlgItem(hDlg, IDC_GAMEROOMLIST),LVM_GETNEXTITEM,(WPARAM)-1,LVNI_FOCUSED);
+          if (Index >= 0)
           {
-            /* Set the player's name */
-            NetworkClient->SetPlayerName(NetworkPlayerName);
-            HWND Listview = GetDlgItem(hDlg, IDC_GAMEROOMLIST);
-            int Index = SendMessage(Listview,LVM_GETNEXTITEM,(WPARAM)-1,LVNI_FOCUSED);
-            if (Index >= 0)
+            /* Read controls' information */
+            char* PlayerName = GetWindowText(GetDlgItem(hDlg,IDC_PLAYERNAME));
+            char* RoomName = new char[60];
+            ListView_GetItemText(GetDlgItem(hDlg, IDC_GAMEROOMLIST),Index,0,RoomName,60);
+            unsigned int RoomID = atoi(RoomName);
+            ListView_GetItemText(GetDlgItem(hDlg, IDC_GAMEROOMLIST),Index,1,RoomName,60);
+            if (strlen(PlayerName) && RoomID > 0)
             {
-              /* Get the selected room */
-              char* RoomName = new char[60];
-              ListView_GetItemText(Listview,Index,0,RoomName,60);
-              int RoomID = atoi(RoomName);
-              ListView_GetItemText(Listview,Index,1,RoomName,60);
-              /* Join the room */
-              if (RoomID > 0 && NetworkClient->JoinRoom(RoomID))
-              {
-                hRoomPanel->SetRoomName(RoomName);
-                /* Dialog will be closed when confirmation is received from the server */
-                SetCursor(LoadCursor(NULL,IDC_WAIT));
-              }
+              Values->PlayerName = PlayerName;
+              Values->RoomId = RoomID;
+              Values->RoomName = RoomName;
+
+              /* Close dialog */
+              PostMessage(hDlg,WM_CLOSE,1,0);
             }
+            delete[] PlayerName;
+            delete[] RoomName;
           }
+          PostMessage(hDlg, WM_CLOSE, 1, 0);
           break;
         }
         case IDCANCEL:
         {
-          if (!NetworkClient->IsInRoom())
-            NetworkClient->Disconnect();
-          SendMessage(hDlg, WM_CLOSE, 0, 0);
+          PostMessage(hDlg, WM_CLOSE, 0, 0);
           break;
         }
       }
       return TRUE;
+    }
     case WM_CLOSE:
     {
       /* Close the dialog */
       EndDialog(hDlg, wParam);
-      /* Free allocated memory */
-
-      hDialog = NULL;
       return TRUE;
     }
     case WM_INITDIALOG:
     {
-      hDialog = hDlg;
+      NetworkGameDialogValues* Values = (NetworkGameDialogValues*)lParam;
+      SetWindowLong(hDlg, GWL_USERDATA, (LPARAM)Values);
+
+      /* Initialize controls */
       HWND Listview = GetDlgItem(hDlg, IDC_GAMEROOMLIST);
-      /* Enable full row selection */
-      SendMessage(Listview, LVM_SETEXTENDEDLISTVIEWSTYLE, LVS_EX_FULLROWSELECT, LVS_EX_FULLROWSELECT);
-      /* Add columns */
+      float scaleFactor = GetDPIScaleFactor();
       char* CollumnName = new char[20];
-      LoadString(GetModuleHandle(NULL), IDS_GAMEROOMLIST_COL1, CollumnName, 20);
-      AddListViewCollumn(Listview, CollumnName, 0, 25);
-      LoadString(GetModuleHandle(NULL), IDS_GAMEROOMLIST_COL2, CollumnName, 20);
-      AddListViewCollumn(Listview, CollumnName, 1, 265);
-      LoadString(GetModuleHandle(NULL), IDS_GAMEROOMLIST_COL3, CollumnName, 20);
-      AddListViewCollumn(Listview, CollumnName, 2, 60);
+      LoadString((HINSTANCE)GetWindowLong(hDlg, GWL_HINSTANCE), IDS_GAMEROOMLIST_COL1, CollumnName, 20);
+      AddListViewCollumn(Listview, CollumnName, 0, (int)(25*scaleFactor));
+      LoadString((HINSTANCE)GetWindowLong(hDlg, GWL_HINSTANCE), IDS_GAMEROOMLIST_COL2, CollumnName, 20);
+      AddListViewCollumn(Listview, CollumnName, 1, (int)(265*scaleFactor));
+      LoadString((HINSTANCE)GetWindowLong(hDlg, GWL_HINSTANCE), IDS_GAMEROOMLIST_COL3, CollumnName, 20);
+      AddListViewCollumn(Listview, CollumnName, 2, (int)(60*scaleFactor));
       delete[] CollumnName;
-      /* Update the window's content */
-      SetWindowText(GetDlgItem(hDlg,IDC_PLAYERNAME),NetworkPlayerName);
+      SendMessage(Listview, LVM_SETEXTENDEDLISTVIEWSTYLE, LVS_EX_FULLROWSELECT, LVS_EX_FULLROWSELECT);
+
+      /* Set initial state */
+      SetWindowText(GetDlgItem(hDlg,IDC_PLAYERNAME), Values->PlayerName.c_str());
       PostMessage(GetDlgItem(hDlg,IDC_PLAYERNAME), EM_SETSEL, (WPARAM)-1, 0);
-      NetworkClient->UpdateRoomList();
+      SendMessage(GetParent(hDlg), WM_UPDATEROOMLIST, (WPARAM)hDlg, 0);
       return TRUE;
     }
     case WM_NOTIFY:
@@ -171,45 +167,7 @@ static INT_PTR __stdcall NetworkGameDialogProc(HWND hDlg, UINT uMsg, WPARAM wPar
 
 // Public functions ------------------------------------------------------------
 
-void AddRoomToList(const RoomInfo* Room)
+int ShowNetworkGameDialog(HINSTANCE Instance, HWND hParent, NetworkGameDialogValues* Values)
 {
-  if (Room != NULL)
-  {
-    HWND Listview = GetDlgItem(hDialog, IDC_GAMEROOMLIST);
-    /* Add a new item to the list view */
-    LVITEM ItemInfo;
-    ItemInfo.mask = 0;
-    ItemInfo.iItem = ListView_GetItemCount(Listview);
-    ItemInfo.iSubItem = 0;
-    ListView_InsertItem(Listview,&ItemInfo);
-    /* Set the item's other attributes */
-    char* Str = inttostr(Room->RoomId);
-    ListView_SetItemText(Listview,ItemInfo.iItem,0,Str);
-    delete[] Str;
-    ListView_SetItemText(Listview,ItemInfo.iItem,1,(CHAR*)Room->Name);
-    Str = inttostr(Room->PlayerCount);
-    ListView_SetItemText(Listview,ItemInfo.iItem,2,Str);
-    delete[] Str;
-    /* Select the first room */
-    if (ItemInfo.iItem == 0)
-    {
-      ItemInfo.mask = LVIF_STATE;
-      ItemInfo.stateMask = LVIS_SELECTED | LVIS_FOCUSED;
-      ItemInfo.state = LVIS_SELECTED | LVIS_FOCUSED;
-      SendMessage(Listview,LVM_SETITEMSTATE,0,(LPARAM)&ItemInfo);
-    }
-
-  }
-}
-
-void CloseNetworkGameDialog()
-{
-  if (hDialog != NULL)
-    PostMessage(hDialog,WM_CLOSE,0,0);
-}
-
-void ShowNetworkGameDialog(HWND hParent)
-{
-  HINSTANCE Instance = (hParent != NULL ? (HINSTANCE)GetWindowLong(hParent, GWL_HINSTANCE) : GetModuleHandle(NULL));
-  DialogBox(Instance,MAKEINTRESOURCE(IDD_NETWORKGAME),hParent,(DLGPROC)NetworkGameDialogProc);
+  return DialogBoxParam(Instance,MAKEINTRESOURCE(IDD_NETWORKGAME), hParent, (DLGPROC)NetworkGameDialogProc, (LPARAM)Values);
 }

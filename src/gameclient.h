@@ -21,14 +21,16 @@
 #define GAMECLIENT_H_
 
 #include <linkedlist.h>
+#include <string>
 #include <tcpclientsocket.h>
 #include <windows.h>
 #include "../../alphachessserver/src/gamedata.h"
 
-/* Message sent from within the network thread to the interface thread */
-#define WM_UPDATEUI WM_USER+5
+using namespace std;
 
-/* Value of the lower word value of the wParam parameter of the WM_UPDATEUI message */
+#define WM_UPDATEINTERFACE WM_USER+500
+
+/* Value of the lower word value of the wParam parameter of the WM_UPDATEINTERFACE message */
 enum InterfaceUpdate
 {
   Disconnected, ConnectionSucceeded, ConnectionFailed, GameDataReceived, GameDataRequested, HostChanged,
@@ -40,7 +42,7 @@ enum InterfaceUpdate
 struct RoomInfo
 {
   unsigned int RoomId;
-  char Name[60];
+  string Name;
   bool Locked;
   int PlayerCount;
 };
@@ -49,7 +51,7 @@ struct RoomInfo
 struct PlayerInfo
 {
   unsigned int PlayerId;
-  char Name[60];
+  string Name;
   bool Ready;
   unsigned long Time;
 };
@@ -57,8 +59,8 @@ struct PlayerInfo
 /* Information on a message */
 struct MessageInfo
 {
-  char PlayerName[60];
-  char* Message;
+  string PlayerName;
+  string Message;
 };
 
 /* Network game client */
@@ -66,7 +68,7 @@ class GameClient
 {
 public:
   static const int Port;
-  static const char* Id;
+  static const string Id;
   static const int SupportedVersion;
   static const int Version;
 
@@ -75,8 +77,8 @@ public:
 
   bool AcceptDrawRequest(const bool Value);
   bool AcceptTakebackRequest(const bool Value);
-  bool Connect(char* Address);
-  bool CreateRoom(const char* RoomName);
+  bool Connect(string Address);
+  bool CreateRoom(const string RoomName);
   bool Disconnect();
   bool GameHasEnded();
   const PlayerInfo* GetBlackPlayer();
@@ -97,17 +99,17 @@ public:
   bool RequestTakeback();
   bool Resign();
   bool ResumeGame();
-  bool SetPlayerName(const char* Name);
+  bool SetPlayerName(const string Name);
   bool SetPlayerReady();
   bool SetPlayerType(const PlayerType Type);
   bool SendGameData(const void* Data, const unsigned long DataSize);
-  bool SendText(const char* Message);
+  bool SendText(const string Message);
   bool SendTime(const unsigned long Time);
   bool UpdateRoomList();
 protected:
   HANDLE hThread;
   HWND hWindow;
-  char* RemoteHost;
+  string RemoteHost;
   TCPClientSocket* Socket;
   bool Connected;
   bool InRoom;

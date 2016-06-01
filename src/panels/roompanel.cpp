@@ -23,26 +23,19 @@
 const char ClassName[] = "RoomPanel";
 
 extern char DefaultFontName[];
-extern GameClient* NetworkClient;
 
 ATOM RoomPanel::ClassAtom = 0;
 
 // PUBLIC FUNCTIONS ------------------------------------------------------------
 
-RoomPanel::RoomPanel(HWND hParent, RECT* R)
+RoomPanel::RoomPanel(HINSTANCE hInstance, HWND hParent, RECT* R)
 {
-  HINSTANCE Instance = (hParent != NULL ? (HINSTANCE)GetWindowLong(hParent, GWL_HINSTANCE) : GetModuleHandle(NULL));
-
-  LeaveRoomButtonClickedProc = NULL;
-  KickPlayerButtonClickedProc = NULL;
-
   Handle = NULL;
   PlayerList = NULL;
   LeaveRoomButton = NULL;
   KickPlayerButton = NULL;
 
   Height = R->bottom-R->top;
-  RoomName = NULL;
   Width = R->right-R->left;
 
   if (ClassAtom == 0)
@@ -51,22 +44,55 @@ RoomPanel::RoomPanel(HWND hParent, RECT* R)
     WNDCLASSEX WndClass;
     WndClass.cbSize = sizeof(WNDCLASSEX);
     WndClass.lpszClassName = ClassName;
-    WndClass.hInstance = Instance;
+    WndClass.hInstance = hInstance;
     WndClass.lpfnWndProc = PanelWindowProc;
     WndClass.style = 0;
     WndClass.hbrBackground = CreateSolidBrush(GetSysColor(COLOR_BTNFACE));
     WndClass.hIcon = 0;
     WndClass.hIconSm = 0;
     WndClass.hCursor = LoadCursor(NULL,IDC_ARROW);
-    WndClass.lpszMenuName = 0;
+    WndClass.lpszMenuName = NULL;
     WndClass.cbClsExtra = 0;
     WndClass.cbWndExtra = 0;
     ClassAtom = RegisterClassEx(&WndClass);
   }
   /* Creates the window */
   if (ClassAtom != 0)
-    CreateWindowEx(0,ClassName,NULL,WS_CHILD | WS_CLIPCHILDREN | WS_CLIPSIBLINGS,
-    R->left,R->left,R->bottom-R->top,R->right-R->left,hParent,NULL,Instance,this);
+  {
+    Handle = CreateWindowEx(0,ClassName,NULL,WS_CHILD | WS_CLIPCHILDREN | WS_CLIPSIBLINGS,
+        R->left,R->left,Width,Height,hParent,NULL,hInstance,this);
+    if (Handle != NULL)
+    {
+      /* Create the child windows */
+      PlayerList = CreateWindowEx(WS_EX_CLIENTEDGE,WC_LISTVIEW,NULL,WS_CHILD | WS_CLIPSIBLINGS | WS_TABSTOP | WS_VISIBLE | LVS_REPORT | LVS_SINGLESEL | LVS_NOSORTHEADER | LVS_SHOWSELALWAYS,
+          0,0,0,0,Handle,NULL,hInstance,NULL);
+      LeaveRoomButton = CreateWindowEx(0,"BUTTON","Leave room",WS_CHILD | WS_CLIPSIBLINGS | WS_TABSTOP | WS_VISIBLE,
+          0,0,0,0,Handle,NULL,hInstance,NULL);
+      KickPlayerButton = CreateWindowEx(0,"BUTTON","Kick player",WS_CHILD | WS_CLIPSIBLINGS | WS_TABSTOP | WS_VISIBLE,
+          0,0,0,0,Handle,NULL,hInstance,NULL);
+
+      /* Initialize child window placement */
+      UpdateSize(Width, Height);
+
+      /* Enable full row selection */
+      SendMessage(PlayerList, LVM_SETEXTENDEDLISTVIEWSTYLE, LVS_EX_FULLROWSELECT, LVS_EX_FULLROWSELECT);
+
+      /* Add collumns to list view */
+      float scaleFactor = GetDPIScaleFactor();
+      char* CollumnName = new char[20];
+      LoadString(hInstance, IDS_PLAYERLIST_COL1, CollumnName, 20);
+      AddListViewCollumn(PlayerList, CollumnName, 0, (int)(25*scaleFactor));
+      LoadString(hInstance, IDS_PLAYERLIST_COL2, CollumnName, 20);
+      AddListViewCollumn(PlayerList, CollumnName, 1, (int)(110*scaleFactor));
+      delete[] CollumnName;
+
+      /* Set controls font */
+      HFONT Font = EasyCreateFont(NULL,DefaultFontName,8,0);
+      PostMessage(PlayerList,WM_SETFONT,(WPARAM)Font,FALSE);
+      PostMessage(LeaveRoomButton,WM_SETFONT,(WPARAM)Font,FALSE);
+      PostMessage(KickPlayerButton,WM_SETFONT,(WPARAM)Font,FALSE);
+    }
+  }
 }
 
 RoomPanel::~RoomPanel()
@@ -78,13 +104,13 @@ RoomPanel::~RoomPanel()
 
 void RoomPanel::EnableKickPlayerButton(bool Value)
 {
-  if (Handle != NULL)
+  if (KickPlayerButton != NULL)
     EnableWindow(KickPlayerButton,Value);
 }
 
 void RoomPanel::EnableLeaveRoomButton(bool Value)
 {
-  if (Handle != NULL)
+  if (LeaveRoomButton != NULL)
     EnableWindow(LeaveRoomButton,Value);
 }
 
@@ -93,7 +119,7 @@ HWND RoomPanel::GetHandle()
   return Handle;
 }
 
-const char* RoomPanel::GetRoomName()
+const string RoomPanel::GetRoomName()
 {
   return RoomName;
 }
@@ -105,21 +131,28 @@ void RoomPanel::Invalidate()
 
 unsigned int RoomPanel::GetSelectedPlayer()
 {
-  int Index = SendMessage(PlayerList,LVM_GETNEXTITEM,(WPARAM)-1,LVNI_FOCUSED);
-  if (Index >= 0)
+  if (PlayerList != NULL)
   {
-    char* Str = new char[6];
-    ListView_GetItemText(PlayerList,Index,0,Str,6);
-    int PlayerId = atoi(Str);
-    delete[] Str;
-    return PlayerId;
+    int Index = SendMessage(PlayerList,LVM_GETNEXTITEM,(WPARAM)-1,LVNI_FOCUSED);
+    if (Index >= 0)
+    {
+      char* Str = new char[6];
+      ListView_GetItemText(PlayerList,Index,0,Str,6);
+      int PlayerId = atoi(Str);
+      delete[] Str;
+      return PlayerId;
+    }
   }
   return 0;
 }
 
-void RoomPanel::SetRoomName(char* Name)
+void RoomPanel::SetGameClient(GameClient* Client)
 {
-  delete[] RoomName;
+  NetworkClient = Client;
+}
+
+void RoomPanel::SetRoomName(string Name)
+{
   RoomName = Name;
 }
 
@@ -127,7 +160,7 @@ void RoomPanel::SetRoomName(char* Name)
 
 void RoomPanel::AddPlayerToList(const PlayerInfo* Player)
 {
-  if (Handle != NULL && Player != NULL)
+  if (PlayerList != NULL && Player != NULL)
   {
     /* Add a new item to the list view */
     LVITEM ItemInfo;
@@ -139,17 +172,20 @@ void RoomPanel::AddPlayerToList(const PlayerInfo* Player)
     char* Str = inttostr(Player->PlayerId);
     ListView_SetItemText(PlayerList,ItemInfo.iItem,0,Str);
     delete[] Str;
-    ListView_SetItemText(PlayerList,ItemInfo.iItem,1,(CHAR*)Player->Name);
+    ListView_SetItemText(PlayerList,ItemInfo.iItem,1,(CHAR*)Player->Name.c_str());
   }
 }
 
 void RoomPanel::UpdatePlayerList()
 {
-  ListView_DeleteAllItems(PlayerList);
-  AddPlayerToList(NetworkClient->GetWhitePlayer());
-  AddPlayerToList(NetworkClient->GetBlackPlayer());
-  for (unsigned int i = 0; i < NetworkClient->GetObserverCount(); i++)
-    AddPlayerToList(NetworkClient->GetObserver(i));
+  if (NetworkClient != NULL && PlayerList != NULL)
+  {
+    ListView_DeleteAllItems(PlayerList);
+    AddPlayerToList(NetworkClient->GetWhitePlayer());
+    AddPlayerToList(NetworkClient->GetBlackPlayer());
+    for (unsigned int i = 0; i < NetworkClient->GetObserverCount(); i++)
+      AddPlayerToList(NetworkClient->GetObserver(i));
+  }
 }
 
 // PRIVATE EVENT FUNCTIONS -----------------------------------------------------
@@ -160,9 +196,17 @@ void RoomPanel::UpdateSize(int NewWidth, int NewHeight)
   Width = NewWidth;
   Height = NewHeight;
   /* Resize child windows */
-  SetWindowPos(PlayerList,NULL,0,2,Width,Height-26,SWP_NOZORDER);
-  SetWindowPos(LeaveRoomButton,NULL,0,Height-22,Width/2,22,SWP_NOZORDER);
-  SetWindowPos(KickPlayerButton,NULL,Width/2,Height-22,Width/2,22,SWP_NOZORDER);
+  float scaleFactor = GetDPIScaleFactor();
+  if (PlayerList != NULL)
+  {
+    SetWindowPos(PlayerList,NULL,0,2,Width,Height-4-(int)(22*scaleFactor),SWP_NOZORDER);
+    ListView_SetColumnWidth(PlayerList, 0, (int)(25*scaleFactor));
+    ListView_SetColumnWidth(PlayerList, 1, (int)(110*scaleFactor));
+  }
+  if (LeaveRoomButton != NULL)
+    SetWindowPos(LeaveRoomButton,NULL,0,Height-(int)(22*scaleFactor),Width/2,(int)(22*scaleFactor),SWP_NOZORDER);
+  if (KickPlayerButton != NULL)
+    SetWindowPos(KickPlayerButton,NULL,Width/2,Height-(int)(22*scaleFactor),Width/2,(int)(22*scaleFactor),SWP_NOZORDER);
 }
 
 // WINAPI FUNCTIONS ------------------------------------------------------------
@@ -171,58 +215,28 @@ LRESULT __stdcall RoomPanel::PanelWindowProc(HWND hWnd, UINT Msg, WPARAM wParam,
 {
   switch (Msg)
   {
-    case WM_CREATE:
-    {
-      CREATESTRUCT* Params = (CREATESTRUCT*)lParam;
-      RoomPanel* Panel = (RoomPanel*)Params->lpCreateParams;
-      SetWindowLong(hWnd, GWL_USERDATA, (LPARAM)Panel);
-
-      if (Panel != NULL)
-      {
-        Panel->Handle = hWnd;
-
-        /* Create the child windows */
-        Panel->PlayerList = CreateWindowEx(WS_EX_CLIENTEDGE,WC_LISTVIEW,NULL,WS_CHILD | WS_CLIPSIBLINGS | WS_TABSTOP | WS_VISIBLE | LVS_REPORT | LVS_SINGLESEL | LVS_NOSORTHEADER | LVS_SHOWSELALWAYS,
-            0,2,Panel->Width,Panel->Height-26,hWnd,NULL,GetModuleHandle(NULL),NULL);
-        Panel->LeaveRoomButton = CreateWindowEx(0,"BUTTON","Leave room",WS_CHILD | WS_CLIPSIBLINGS | WS_TABSTOP | WS_VISIBLE,
-            0,Panel->Height-22,Panel->Width/2,22,hWnd,NULL,GetModuleHandle(NULL),NULL);
-        Panel->KickPlayerButton = CreateWindowEx(0,"BUTTON","Kick player",WS_CHILD | WS_CLIPSIBLINGS | WS_TABSTOP | WS_VISIBLE,
-            Panel->Width/2,Panel->Height-22,Panel->Width/2,22,hWnd,NULL,GetModuleHandle(NULL),NULL);
-
-        /* Change the window's appearance */
-        SendMessage(Panel->PlayerList, LVM_SETEXTENDEDLISTVIEWSTYLE, LVS_EX_FULLROWSELECT, LVS_EX_FULLROWSELECT);
-        char* CollumnName = new char[20];
-        LoadString(GetModuleHandle(NULL), IDS_PLAYERLIST_COL1, CollumnName, 20);
-        AddListViewCollumn(Panel->PlayerList, CollumnName, 0, 25);
-        LoadString(GetModuleHandle(NULL), IDS_PLAYERLIST_COL2, CollumnName, 20);
-        AddListViewCollumn(Panel->PlayerList, CollumnName, 1, 110);
-        delete[] CollumnName;
-        HFONT Font = EasyCreateFont(NULL,DefaultFontName,8,0);
-        PostMessage(Panel->PlayerList,WM_SETFONT,(WPARAM)Font,FALSE);
-        PostMessage(Panel->LeaveRoomButton,WM_SETFONT,(WPARAM)Font,FALSE);
-        PostMessage(Panel->KickPlayerButton,WM_SETFONT,(WPARAM)Font,FALSE);
-      }
-      return 0;
-    }
     case WM_COMMAND:
     {
       RoomPanel* Panel = (RoomPanel*)GetWindowLong(hWnd, GWL_USERDATA);
-
-      /* Process child window's messages */
       if (Panel != NULL)
       {
-        if ((HWND)lParam == Panel->LeaveRoomButton && Panel->LeaveRoomButtonClickedProc != NULL)
-          (*(Panel->LeaveRoomButtonClickedProc))();
-        if ((HWND)lParam == Panel->KickPlayerButton && Panel->KickPlayerButtonClickedProc != NULL)
-          (*(Panel->KickPlayerButtonClickedProc))();
+        if ((HWND)lParam == Panel->KickPlayerButton)
+          SendMessage(GetParent(hWnd), WM_KICKPLAYERBUTTONCLICKED, 0, 0);
+        else if ((HWND)lParam == Panel->LeaveRoomButton)
+          SendMessage(GetParent(hWnd), WM_LEAVEROOMBUTTONCLICKED, 0, 0);
       }
+      return 0;
+    }
+    case WM_CREATE:
+    {
+      CREATESTRUCT* Params = (CREATESTRUCT*)lParam;
+      RoomPanel* Panel = (RoomPanel*)(Params->lpCreateParams);
+      SetWindowLong(hWnd, GWL_USERDATA, (LPARAM)Panel);
       return 0;
     }
     case WM_DESTROY:
     {
       RoomPanel* Panel = (RoomPanel*)GetWindowLong(hWnd, GWL_USERDATA);
-
-      /* Destroy the child windows */
       if (Panel != NULL)
       {
         DestroyWindow(Panel->PlayerList);
@@ -234,9 +248,11 @@ LRESULT __stdcall RoomPanel::PanelWindowProc(HWND hWnd, UINT Msg, WPARAM wParam,
     case WM_SIZE:
     {
       RoomPanel* Panel = (RoomPanel*)GetWindowLong(hWnd, GWL_USERDATA);
-
-      if (Panel != NULL && LOWORD(lParam) != Panel->Width || HIWORD(lParam) != Panel->Height)
-          Panel->UpdateSize((short)LOWORD(lParam), (short)HIWORD(lParam));
+      if (Panel != NULL)
+      {
+        if (LOWORD(lParam) != Panel->Width || HIWORD(lParam) != Panel->Height)
+            Panel->UpdateSize((short)LOWORD(lParam), (short)HIWORD(lParam));
+      }
       return 0;
     }
   }

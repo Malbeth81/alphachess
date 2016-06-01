@@ -1,10 +1,30 @@
+/*
+* InputDialog.cpp
+*
+* Copyright (C) 2007-2010 Marc-André Lamothe.
+*
+* This program is free software; you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation; either version 2 of the License, or
+* (at your option) any later version.
+*
+* This program is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+* GNU Library General Public License for more details.
+*
+* You should have received a copy of the GNU General Public License
+* along with this program; if not, write to the Free Software
+* Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+*/
 #include "inputdialog.h"
 
-#include "../resource.h"
-
-static const char* DlgTitle;
-static const char* DlgPrompt;
-static char* DlgValue;
+struct InputDialogValues
+{
+  string Title;
+  string Message;
+  string* Value;
+};
 
 // WINAPI FUNCTIONS ------------------------------------------------------------
 
@@ -19,13 +39,15 @@ static BOOL __stdcall InputDialogProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARA
       {
         case IDOK:
         {
-          GetWindowText(GetDlgItem(hDlg, IDC_INPUT), DlgValue, MAX_PATH);
-          SendMessage(hDlg, WM_CLOSE, 1, 0);
+          InputDialogValues* Values = (InputDialogValues*)GetWindowLong(hDlg, GWL_USERDATA);
+
+          Values->Value->assign(GetWindowText(GetDlgItem(hDlg, IDC_INPUT)));
+          PostMessage(hDlg, WM_CLOSE, 1, 0);
           break;
         }
         case IDCANCEL:
         {
-          SendMessage(hDlg, WM_CLOSE, 0, 0);
+          PostMessage(hDlg, WM_CLOSE, 0, 0);
           break;
         }
       }
@@ -38,9 +60,13 @@ static BOOL __stdcall InputDialogProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARA
     }
     case WM_INITDIALOG:
     {
-      SetWindowText(hDlg, DlgTitle);
-      SetWindowText(GetDlgItem(hDlg, IDC_INPUTLBL), DlgPrompt);
-      SetWindowText(GetDlgItem(hDlg, IDC_INPUT), DlgValue);
+      InputDialogValues* Values = (InputDialogValues*)lParam;
+      SetWindowLong(hDlg, GWL_USERDATA, (LPARAM)Values);
+
+      /* Initialize controls */
+      SetWindowText(hDlg, Values->Title.c_str());
+      SetWindowText(GetDlgItem(hDlg, IDC_INPUTLBL), Values->Message.c_str());
+      SetWindowText(GetDlgItem(hDlg, IDC_INPUT), Values->Value->c_str());
       return TRUE;
     }
   }
@@ -49,15 +75,13 @@ static BOOL __stdcall InputDialogProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARA
 
 // Public functions ------------------------------------------------------------
 
-char* InputDialog(HWND hParent, const char* Title, const char* Prompt, const char* DefaultValue)
+int InputDialog(HINSTANCE Instance, HWND hParent, const string Title, const string Message, string* Value)
 {
-  HINSTANCE Instance = (hParent != NULL ? (HINSTANCE)GetWindowLong(hParent, GWL_HINSTANCE) : GetModuleHandle(NULL));
-  DlgTitle = Title;
-  DlgPrompt = Prompt;
-  DlgValue = new char[MAX_PATH];
-  strcpy(DlgValue, DefaultValue);
-  if (DialogBox(Instance, MAKEINTRESOURCE(IDD_INPUT), hParent, (DLGPROC)InputDialogProc) > 0)
-    return DlgValue;
-  else
-    return NULL;
+  InputDialogValues* Values = new InputDialogValues;
+  Values->Title = Title;
+  Values->Message = Message;
+  Values->Value = Value;
+  int Result = DialogBoxParam(Instance, MAKEINTRESOURCE(IDD_INPUT), hParent, (DLGPROC)InputDialogProc, (LPARAM)Values);
+  delete Values;
+  return Result;
 }

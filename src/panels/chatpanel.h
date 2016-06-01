@@ -27,22 +27,21 @@
 #include <winutils.h>
 #include <windows.h>
 
-using namespace std;
+#define WM_SENDMESSAGEBUTTONCLICKED WM_USER+503
 
-typedef void (__stdcall *SENDTEXTPROC)(char* Text);
+using namespace std;
 
 class ChatPanel
 {
   public :
-    SENDTEXTPROC SendTextProc;
-
-    ChatPanel(HWND hParent, RECT* R);
+    ChatPanel(HINSTANCE hInstance, HWND hParent, RECT* R);
     ~ChatPanel();
-    void AddLine(char* Text);
+    void AddLine(string Text);
     HWND GetHandle();
     void Invalidate();
   private :
     static ATOM ClassAtom;
+    static ATOM MessagesClassAtom;
     static WNDPROC OldInputFieldProc;
 
     HWND Handle;
@@ -52,21 +51,23 @@ class ChatPanel
 
     LinkedList<string> Lines;
 
-    int Height;
-    int LineHeight;
-    int MessageHeight;
-    int MessageWidth;
-    int TopRow;
-    int VisibleRows;
-    int Width;
+    unsigned int Height;
+    unsigned int LineHeight;
+    unsigned int MessageHeight;
+    unsigned int MessageWidth;
+    unsigned int TopRow;
+    unsigned int VisibleRows;
+    unsigned int Width;
 
     /* GUI functions */
     void SendString();
     void SetVScrollBar(int Pos, int Range);
     void VScroll(int ScrollCode, int Pos);
     /* Event function */
-    void UpdateSize(int NewWidth, int NewHeight);
+    void Paint();
+    void UpdateLineSize();
     void UpdateMessageSize(int NewWidth, int NewHeight);
+    void UpdateSize(int NewWidth, int NewHeight);
     /* WinAPI functions */
     static LRESULT __stdcall PanelWindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
     static LRESULT __stdcall MessagesWindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);

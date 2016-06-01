@@ -1,7 +1,7 @@
 /*
 * LocalGameDialog.cpp
 *
-* Copyright (C) 2007-2009 Marc-André Lamothe.
+* Copyright (C) 2007-2010 Marc-André Lamothe.
 *
 * This program is free software; you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -19,65 +19,59 @@
 */
 #include "localgamedialog.h"
 
-#include "../gameclient.h"
-#include "../resource.h"
-#include "../chess/chessengine.h"
-
-extern ChessEngine Chess;
-extern GameClient* NetworkClient;
-
-extern bool BlackPlayerIsComputer;
-extern bool WhitePlayerIsComputer;
-
 INT_PTR __stdcall LocalGameDialogProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
   switch (uMsg)
   {
-    case WM_COMMAND: /* Process control messages */
+    case WM_COMMAND:
     {
       switch (LOWORD(wParam))
       {
-        case IDC_COMPUTERBLACK:
+        case IDC_GAMETYPE:
         {
-          if (HIWORD(wParam) == BN_CLICKED)
-            CheckDlgButton(hDlg, IDC_COMPUTERWHITE, BST_UNCHECKED);
+          int Index = SendDlgItemMessage(hDlg, IDC_GAMETYPE, CB_GETCURSEL, 0, 0);
+          EnableWindow(GetDlgItem(hDlg,IDC_MOVETIME), Index == 1 ? TRUE : FALSE);
           break;
         }
-        case IDC_COMPUTERWHITE:
+        case IDC_WHITEPLAYER:
         {
-          if (HIWORD(wParam) == BN_CLICKED)
-            CheckDlgButton(hDlg, IDC_COMPUTERBLACK, BST_UNCHECKED);
+          int Index = SendDlgItemMessage(hDlg, IDC_WHITEPLAYER, CB_GETCURSEL, 0, 0);
+          if (Index == 1)
+            SendDlgItemMessage(hDlg, IDC_BLACKPLAYER, CB_SETCURSEL, Index, 0);
+          break;
+        }
+        case IDC_BLACKPLAYER:
+        {
+          int Index = SendDlgItemMessage(hDlg, IDC_BLACKPLAYER, CB_GETCURSEL, 0, 0);
+          if (Index == 1)
+            SendDlgItemMessage(hDlg, IDC_WHITEPLAYER, CB_SETCURSEL, Index, 0);
           break;
         }
         case IDCANCEL:
         {
-          SendMessage(hDlg,WM_CLOSE,0,0);
+          PostMessage(hDlg,WM_CLOSE,0,0);
           break;
         }
         case IDOK:
         {
-          /* Confirmation */
-          if (Chess.GetGameState() == Started || Chess.GetGameState() == Paused)
-            if (MessageBox(hDlg,"You have a game in progress, are you sure you want to start a new local game?","Start a new local game",MB_OKCANCEL|MB_ICONQUESTION) == IDCANCEL)
-              break;
+          LocalGameDialogValues* Values = (LocalGameDialogValues*)GetWindowLong(hDlg, GWL_USERDATA);
+
           /* Read controls' information */
           char* BlackPlayerName = GetWindowText(GetDlgItem(hDlg,IDC_BLACKPLAYERNAME));
           char* WhitePlayerName = GetWindowText(GetDlgItem(hDlg,IDC_WHITEPLAYERNAME));
-          BlackPlayerIsComputer = IsDlgButtonChecked(hDlg, IDC_COMPUTERBLACK) == BST_CHECKED;
-          WhitePlayerIsComputer = IsDlgButtonChecked(hDlg, IDC_COMPUTERWHITE) == BST_CHECKED;
-          /* Disconnect from server */
-          if (NetworkClient->IsConnected())
-            NetworkClient->Disconnect();
-          /* Create the game */
-          Chess.SetPlayerName(Black,BlackPlayerName);
-          Chess.SetPlayerName(White,WhitePlayerName);
-          Chess.NewGame();
-          Chess.SetGameMode(FreeTime,0);
-          Chess.StartGame();
-          /* Close dialog */
+          Values->BlackPlayerName = BlackPlayerName;
+          Values->WhitePlayerName = WhitePlayerName;
           delete[] BlackPlayerName;
           delete[] WhitePlayerName;
-          SendMessage(hDlg,WM_CLOSE,0,0);
+          Values->WhitePlayerIsComputer = (SendDlgItemMessage(hDlg, IDC_WHITEPLAYER, CB_GETCURSEL, 0, 0) > 0);
+          Values->BlackPlayerIsComputer = (SendDlgItemMessage(hDlg, IDC_BLACKPLAYER, CB_GETCURSEL, 0, 0) > 0);
+          Values->GameMode = SendDlgItemMessage(hDlg, IDC_GAMETYPE, CB_GETCURSEL, 0, 0);
+          char* TimePerMove = GetWindowText(GetDlgItem(hDlg,IDC_MOVETIME));
+          Values->TimePerMove = (unsigned int)atoi(TimePerMove);
+          delete[] TimePerMove;
+
+          /* Close dialog */
+          PostMessage(hDlg,WM_CLOSE,1,0);
           break;
         }
       }
@@ -90,19 +84,31 @@ INT_PTR __stdcall LocalGameDialogProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARA
     }
     case WM_INITDIALOG:
     {
-      /* Write control's information */
-      SetWindowText(GetDlgItem(hDlg,IDC_BLACKPLAYERNAME), Chess.GetPlayer(Black)->Name.c_str());
-      SetWindowText(GetDlgItem(hDlg,IDC_WHITEPLAYERNAME), Chess.GetPlayer(White)->Name.c_str());
-      CheckDlgButton(hDlg, IDC_COMPUTERBLACK, BlackPlayerIsComputer ? BST_CHECKED : BST_UNCHECKED);
-      CheckDlgButton(hDlg, IDC_COMPUTERWHITE, WhitePlayerIsComputer ? BST_CHECKED : BST_UNCHECKED);
+      LocalGameDialogValues* Values = (LocalGameDialogValues*)lParam;
+      SetWindowLong(hDlg, GWL_USERDATA, (LPARAM)Values);
+
+      /* Initialize controls */
+      PopulateComboList(hDlg, IDC_GAMETYPE, "Unlimited time;Time per move");
+      PopulateComboList(hDlg, IDC_WHITEPLAYER, "Human;Computer");
+      PopulateComboList(hDlg, IDC_BLACKPLAYER, "Human;Computer");
+
+      /* Set initial state */
+      SendDlgItemMessage(hDlg, IDC_GAMETYPE, CB_SETCURSEL, Values->GameMode, 0);
+      char* Str = inttostr(Values->TimePerMove);
+      SetWindowText(GetDlgItem(hDlg,IDC_MOVETIME), Str);
+      delete[] Str;
+      EnableWindow(GetDlgItem(hDlg,IDC_MOVETIME), Values->GameMode ? TRUE : FALSE);
+      SetWindowText(GetDlgItem(hDlg,IDC_BLACKPLAYERNAME), Values->BlackPlayerName.c_str());
+      SetWindowText(GetDlgItem(hDlg,IDC_WHITEPLAYERNAME), Values->WhitePlayerName.c_str());
+      SendDlgItemMessage(hDlg, IDC_WHITEPLAYER, CB_SETCURSEL, Values->BlackPlayerIsComputer ? 1 : 0, 0);
+      SendDlgItemMessage(hDlg, IDC_BLACKPLAYER, CB_SETCURSEL, Values->WhitePlayerIsComputer ? 1 : 0, 0);
       return TRUE;
     }
   }
   return FALSE;
 }
 
-void ShowLocalGameDialog(HWND hParent)
+int ShowLocalGameDialog(HINSTANCE Instance, HWND hParent, LocalGameDialogValues* Values)
 {
-  HINSTANCE Instance = (hParent != NULL ? (HINSTANCE)GetWindowLong(hParent, GWL_HINSTANCE) : GetModuleHandle(NULL));
-  DialogBox(Instance,MAKEINTRESOURCE(IDD_LOCALGAME),hParent,(DLGPROC)LocalGameDialogProc);
+  return DialogBoxParam(Instance,MAKEINTRESOURCE(IDD_LOCALGAME),hParent,(DLGPROC)LocalGameDialogProc, (LPARAM)Values);
 }

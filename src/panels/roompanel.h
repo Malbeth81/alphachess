@@ -21,27 +21,29 @@
 #define	ROOMPANEL_H_
 
 #define _WIN32_IE 0x0300 // IE 3.0 controls
+#include <string>
 #include <winutils.h>
 #include <windows.h>
 #include <commctrl.h>
 #include "../gameclient.h"
 
-typedef void (__stdcall *ROOMPANELBUTTONCLICKEDPROC)();
+using namespace std;
+
+#define WM_KICKPLAYERBUTTONCLICKED WM_USER+504
+#define WM_LEAVEROOMBUTTONCLICKED WM_USER+505
 
 class RoomPanel {
   public :
-    ROOMPANELBUTTONCLICKEDPROC LeaveRoomButtonClickedProc;
-    ROOMPANELBUTTONCLICKEDPROC KickPlayerButtonClickedProc;
-
-    RoomPanel(HWND hParent, RECT* R);
+    RoomPanel(HINSTANCE hInstance, HWND hParent, RECT* R);
     ~RoomPanel();
     void EnableKickPlayerButton(bool Value);
     void EnableLeaveRoomButton(bool Value);
     HWND GetHandle();
-    const char* GetRoomName();
+    const string GetRoomName();
     void Invalidate();
     unsigned int GetSelectedPlayer();
-    void SetRoomName(char* Name);
+    void SetGameClient(GameClient* Client);
+    void SetRoomName(string Name);
   private:
     static ATOM ClassAtom;
 
@@ -50,8 +52,10 @@ class RoomPanel {
     HWND LeaveRoomButton;
     HWND KickPlayerButton;
 
+    GameClient* NetworkClient;
+
     int Height;
-    char* RoomName;
+    string RoomName;
     int Width;
 
     /* Private functions */

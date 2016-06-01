@@ -1,7 +1,7 @@
 /*
 * ThemesDialog.cpp
 *
-* Copyright (C) 2007-2009 Marc-André Lamothe.
+* Copyright (C) 2007-2010 Marc-André Lamothe.
 *
 * This program is free software; you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -19,113 +19,91 @@
 */
 #include "themesdialog.h"
 
-#include "inputdialog.h"
-#include "../chessboardtheme.h"
-#include "../resource.h"
+struct ThemesDialogValues
+{
+  string SelectedTheme;
+  bool ThemeChanged;
+  string ThemesDirectory;
+};
 
-static string CurrentTheme;
-static ChessBoardTheme Theme;
-static bool ThemeChanged = false;
-
-LinkedList<string>* GetThemes();
 
 // PRIVATE FUNCTIONS -----------------------------------------------------------
 
-static void DeleteTheme()
+static void ListThemes(HWND List, string ThemesDirectory)
 {
-  /* Create file name */
-  char* FileName = new char[MAX_PATH];
-  strcpy(FileName, "Themes\\");
-  strcat(FileName, Theme.Name.c_str());
-  strcat(FileName, ".ini");
-  /* Delete file */
-  DeleteFile(FileName);
-  /* Clean up */
-  delete[] FileName;
+  /* Get the path to the thenes directory */
+  if (!DirectoryExists(ThemesDirectory.c_str()))
+    CreateDirectory(ThemesDirectory.c_str(), NULL);
+
+  /* Clears the list */
+  SendMessage(List, LB_RESETCONTENT, 0, 0);
+
+  /* Get the themes in the folder */
+  WIN32_FIND_DATA FindData;
+  string FileName = ThemesDirectory + "*.ini";
+  HANDLE Handle = FindFirstFile(FileName.c_str(), &FindData);
+  if (Handle != INVALID_HANDLE_VALUE)
+  {
+    do if (FindData.cFileName[0] != '.' && !(FindData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY))
+    {
+      char* Str = substr(FindData.cFileName, 0, strrpos(FindData.cFileName,"."));
+      SendMessage(List, LB_ADDSTRING, 0, (LPARAM)Str);
+      delete[] Str;
+    }
+    while (FindNextFile(Handle, &FindData));
+    FindClose(Handle);
+  }
 }
 
-static void DisplayTheme(HWND hDlg)
+static void LoadTheme(HWND hDlg, string ThemesDirectory, string Name)
 {
-  /* Display the selected theme */
-  SetColorChooserColor(GetDlgItem(hDlg, IDC_BORDERCOLOR),Theme.BorderColor);
-  SetColorChooserColor(GetDlgItem(hDlg, IDC_COORDINATESCOLOR),Theme.CoordinatesColor);
-  SetColorChooserColor(GetDlgItem(hDlg, IDC_WHITESQUARESCOLOR),Theme.WhiteSquaresColor);
-  SetColorChooserColor(GetDlgItem(hDlg, IDC_BLACKSQUARECOLOR),Theme.BlackSquaresColor);
-  SetColorChooserColor(GetDlgItem(hDlg, IDC_LASTMOVECOLOR),Theme.LastMovedColor);
-  SetColorChooserColor(GetDlgItem(hDlg, IDC_WHITEPIECESCOLOR),Theme.WhitePiecesColor);
-  SetColorChooserColor(GetDlgItem(hDlg, IDC_BLACKPIECESCOLOR),Theme.BlackPiecesColor);
-  SetColorChooserColor(GetDlgItem(hDlg, IDC_WHITEPIECESOUTLINECOLOR),Theme.WhitePiecesOutlineColor);
-  SetColorChooserColor(GetDlgItem(hDlg, IDC_BLACKPIECESOUTLINECOLOR),Theme.BlackPiecesOutlineColor);
-  SetColorChooserColor(GetDlgItem(hDlg, IDC_CURRENTSQUARECOLOR),Theme.CurrentSquareColor);
-  SetColorChooserColor(GetDlgItem(hDlg, IDC_SELECTEDSQUARECOLOR),Theme.SelectedSquareColor);
-  SetColorChooserColor(GetDlgItem(hDlg, IDC_VALIDMOVECOLOR),Theme.ValidMoveColor);
-  SetColorChooserColor(GetDlgItem(hDlg, IDC_INVALIDMOVECOLOR),Theme.InvalidMoveColor);
+  ChessBoardTheme Theme;
+
+  /* Load theme from file */
+  Theme.LoadFromFile(ThemesDirectory + Name + ".ini");
+
+  /* Set controls' information */
+  SetColorChooserColor(GetDlgItem(hDlg, IDC_BORDERCOLOR), Theme.BorderColor);
+  SetColorChooserColor(GetDlgItem(hDlg, IDC_COORDINATESCOLOR), Theme.CoordinatesColor);
+  SetColorChooserColor(GetDlgItem(hDlg, IDC_WHITESQUARESCOLOR), Theme.WhiteSquaresColor);
+  SetColorChooserColor(GetDlgItem(hDlg, IDC_BLACKSQUARECOLOR), Theme.BlackSquaresColor);
+  SetColorChooserColor(GetDlgItem(hDlg, IDC_LASTMOVECOLOR), Theme.LastMovedColor);
+  SetColorChooserColor(GetDlgItem(hDlg, IDC_WHITEPIECESCOLOR), Theme.WhitePiecesColor);
+  SetColorChooserColor(GetDlgItem(hDlg, IDC_BLACKPIECESCOLOR), Theme.BlackPiecesColor);
+  SetColorChooserColor(GetDlgItem(hDlg, IDC_WHITEPIECESOUTLINECOLOR), Theme.WhitePiecesOutlineColor);
+  SetColorChooserColor(GetDlgItem(hDlg, IDC_BLACKPIECESOUTLINECOLOR), Theme.BlackPiecesOutlineColor);
+  SetColorChooserColor(GetDlgItem(hDlg, IDC_CURRENTSQUARECOLOR), Theme.CurrentSquareColor);
+  SetColorChooserColor(GetDlgItem(hDlg, IDC_SELECTEDSQUARECOLOR), Theme.SelectedSquareColor);
+  SetColorChooserColor(GetDlgItem(hDlg, IDC_VALIDMOVECOLOR), Theme.ValidMoveColor);
+  SetColorChooserColor(GetDlgItem(hDlg, IDC_INVALIDMOVECOLOR), Theme.InvalidMoveColor);
   SendDlgItemMessage(hDlg, IDC_WHITEPIECESSTYLE, CB_SETCURSEL, Theme.WhitePiecesStyle, 0);
   SendDlgItemMessage(hDlg, IDC_BLACKPIECESSTYLE, CB_SETCURSEL, Theme.BlackPiecesStyle, 0);
 }
 
-static void ListThemes(HWND hDlg, int ControlID)
+static void SaveTheme(HWND hDlg, string ThemesDirectory, string Name)
 {
-  LinkedList<string>* Themes = GetThemes();
-  /* Save current item selection */
-  int CurSel = SendDlgItemMessage(hDlg, ControlID, LB_GETCURSEL, 0, 0);
-  /* Clears the list */
-  SendDlgItemMessage(hDlg, ControlID, LB_RESETCONTENT, 0, 0);
-  /* Populate the list */
-  for (int i=0; i < Themes->Size(); i++)
-  {
-    SendDlgItemMessage(hDlg, ControlID, LB_ADDSTRING, 0, (LPARAM)Themes->Get(i)->c_str());
-    if (CurSel < 0 && Themes->Get(i)->compare(CurrentTheme) == 0)
-      CurSel = i;
-  }
-  /* Select previously selected item */
-  SendDlgItemMessage(hDlg, ControlID, LB_SETCURSEL, max(0,CurSel), 0);
-  /* Cleanup */
-  while (Themes->Size() > 0)
-    delete Themes->Remove();
-  delete Themes;
-}
+  ChessBoardTheme Theme;
 
-static void LoadTheme(char* ThemeName)
-{
-  /* Create file name */
-  char* FileName = new char[MAX_PATH];
-  strcpy(FileName, "Themes\\");
-  strcat(FileName, ThemeName);
-  strcat(FileName, ".ini");
-  /* Load theme from file */
-  Theme.LoadFromFile(FileName);
-  /* Clean up */
-  delete[] FileName;
-}
+  /* Get controls' information */
+  Theme.Name = Name;
+  Theme.BorderColor = GetColorChooserColor(GetDlgItem(hDlg, IDC_BORDERCOLOR));
+  Theme.CoordinatesColor = GetColorChooserColor(GetDlgItem(hDlg, IDC_COORDINATESCOLOR));
+  Theme.WhiteSquaresColor = GetColorChooserColor(GetDlgItem(hDlg, IDC_WHITESQUARESCOLOR));
+  Theme.BlackSquaresColor = GetColorChooserColor(GetDlgItem(hDlg, IDC_BLACKSQUARECOLOR));
+  Theme.LastMovedColor = GetColorChooserColor(GetDlgItem(hDlg, IDC_LASTMOVECOLOR));
+  Theme.WhitePiecesColor = GetColorChooserColor(GetDlgItem(hDlg, IDC_WHITEPIECESCOLOR));
+  Theme.BlackPiecesColor = GetColorChooserColor(GetDlgItem(hDlg, IDC_BLACKPIECESCOLOR));
+  Theme.WhitePiecesOutlineColor = GetColorChooserColor(GetDlgItem(hDlg, IDC_WHITEPIECESOUTLINECOLOR));
+  Theme.BlackPiecesOutlineColor = GetColorChooserColor(GetDlgItem(hDlg, IDC_BLACKPIECESOUTLINECOLOR));
+  Theme.CurrentSquareColor = GetColorChooserColor(GetDlgItem(hDlg, IDC_CURRENTSQUARECOLOR));
+  Theme.SelectedSquareColor = GetColorChooserColor(GetDlgItem(hDlg, IDC_SELECTEDSQUARECOLOR));
+  Theme.ValidMoveColor = GetColorChooserColor(GetDlgItem(hDlg, IDC_VALIDMOVECOLOR));
+  Theme.InvalidMoveColor = GetColorChooserColor(GetDlgItem(hDlg, IDC_INVALIDMOVECOLOR));
+  Theme.WhitePiecesStyle = (ChessPieceStyle)SendMessage(GetDlgItem(hDlg, IDC_WHITEPIECESSTYLE), CB_GETCURSEL, 0, 0);
+  Theme.BlackPiecesStyle = (ChessPieceStyle)SendMessage(GetDlgItem(hDlg, IDC_BLACKPIECESSTYLE), CB_GETCURSEL, 0, 0);
 
-static void SaveTheme()
-{
-  /* Create file name */
-  char* FileName = new char[MAX_PATH];
-  strcpy(FileName, "Themes\\");
-  strcat(FileName, Theme.Name.c_str());
-  strcat(FileName, ".ini");
   /* Save theme to file */
-  Theme.SaveToFile(FileName);
-  /* Clean up */
-  delete[] FileName;
-}
-
-static void SelectTheme(HWND hDlg, int Index)
-{
-  if (Index >= 0)
-  {
-    /* Load the selected theme */
-    char* ThemeName = new char[MAX_PATH];
-    SendDlgItemMessage(hDlg, IDC_THEMES, LB_GETTEXT, Index, (LPARAM)ThemeName);
-    LoadTheme(ThemeName);
-    delete[] ThemeName;
-    /* Display the selected theme */
-    DisplayTheme(hDlg);
-    /* Reset change indicator */
-    ThemeChanged = false;
-  }
+  Theme.SaveToFile(ThemesDirectory + Name + ".ini");
 }
 
 // WINAPI FUNCTIONS ------------------------------------------------------------
@@ -142,10 +120,25 @@ static BOOL __stdcall ThemesDialogProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPAR
         {
           if (HIWORD(wParam) == LBN_SELCHANGE)
           {
-            if (ThemeChanged && MessageBox(hDlg,"Do you want to save the changes to the selected theme?","Question",MB_YESNO|MB_ICONQUESTION) == IDYES)
-              SaveTheme();
-            /* Select theme */
-            SelectTheme(hDlg,SendDlgItemMessage(hDlg, IDC_THEMES, LB_GETCURSEL, 0, 0));
+            ThemesDialogValues* Values = (ThemesDialogValues*)GetWindowLong(hDlg, GWL_USERDATA);
+
+            int Index = SendDlgItemMessage(hDlg, IDC_THEMES, LB_GETCURSEL, 0, 0);
+            if (Index >= 0)
+            {
+              /* Show confirmation */
+              if (Values->ThemeChanged && MessageBox(hDlg,"Do you want to save the changes to the selected theme?","Question",MB_YESNO|MB_ICONQUESTION) == IDYES)
+                SaveTheme(hDlg, Values->ThemesDirectory, Values->SelectedTheme);
+
+              /* Load the selected theme */
+              char* ThemeName = new char[MAX_PATH];
+              SendDlgItemMessage(hDlg, IDC_THEMES, LB_GETTEXT, Index, (LPARAM)ThemeName);
+              Values->SelectedTheme = ThemeName;
+              delete[] ThemeName;
+              LoadTheme(hDlg, Values->ThemesDirectory, Values->SelectedTheme);
+
+              /* Reset change indicator */
+              Values->ThemeChanged = false;
+            }
           }
           break;
         }
@@ -153,22 +146,23 @@ static BOOL __stdcall ThemesDialogProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPAR
         {
           if (HIWORD(wParam) == BN_CLICKED)
           {
-            char* Name = InputDialog(hDlg, "Create a new theme", "Enter a name for the new theme:");
-            if (Name != NULL & strlen(Name) > 0)
+            ThemesDialogValues* Values = (ThemesDialogValues*)GetWindowLong(hDlg, GWL_USERDATA);
+
+            string Name;
+            if (InputDialog((HINSTANCE)GetWindowLong(hDlg, GWL_HINSTANCE), hDlg, "Create a new theme", "Enter a name for the new theme:", &Name) & Name.length() > 0)
             {
               /* Create the new theme */
-              Theme.Name.assign(Name);
-              SaveTheme();
+              SaveTheme(hDlg, Values->ThemesDirectory, Name);
+
               /* Update the theme list */
-              ListThemes(hDlg, IDC_THEMES);
+              ListThemes(GetDlgItem(hDlg, IDC_THEMES), Values->ThemesDirectory);
+
               /* Select the new theme */
-              if (SendDlgItemMessage(hDlg, IDC_THEMES, CB_SELECTSTRING, (WPARAM)0, (LPARAM)Name) == CB_ERR)
-                SetDlgItemText(hDlg, IDC_THEMES, Name);
+              SelectComboBoxItem(hDlg, IDC_THEMES, Name.c_str());
+
               /* Enable the delete button */
               EnableWindow(GetDlgItem(hDlg,IDC_DELETETHEME), TRUE);
             }
-            if (Name != NULL)
-              delete[] Name;
           }
           break;
         }
@@ -176,22 +170,35 @@ static BOOL __stdcall ThemesDialogProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPAR
         {
           if (HIWORD(wParam) == BN_CLICKED)
           {
+            ThemesDialogValues* Values = (ThemesDialogValues*)GetWindowLong(hDlg, GWL_USERDATA);
+
             int Index = SendDlgItemMessage(hDlg, IDC_THEMES, LB_GETCURSEL, 0, 0);
             if (Index >= 0 && MessageBox(hDlg,"Are you certain you want to permanently delete the selected theme?","Question",MB_YESNO|MB_ICONQUESTION) == IDYES)
             {
               /* Delete the selected theme */
-              DeleteTheme();
-              ThemeChanged = false;
-              ListThemes(hDlg, IDC_THEMES);
-              /* Select a theme if none selected */
+              string FileName = Values->ThemesDirectory + Values->SelectedTheme + ".ini";
+              DeleteFile(FileName.c_str());
+
+              /* Update the theme list */
+              ListThemes(GetDlgItem(hDlg, IDC_THEMES), Values->ThemesDirectory);
+
+              /* Reset change indicator */
+              Values->ThemeChanged = false;
+
+              /* Select a theme if none is selected */
               int ItemCount = SendDlgItemMessage(hDlg, IDC_THEMES, LB_GETCOUNT, 0, 0);
               if (Index >= ItemCount)
               {
                 SendDlgItemMessage(hDlg, IDC_THEMES, LB_SETCURSEL, ItemCount-1, 0);
                 Index = ItemCount-1;
               }
-              SelectTheme(hDlg,Index);
-              /* Disable the button */
+              char* ThemeName = new char[MAX_PATH];
+              SendDlgItemMessage(hDlg, IDC_THEMES, LB_GETTEXT, Index, (LPARAM)ThemeName);
+              Values->SelectedTheme = ThemeName;
+              delete[] ThemeName;
+              LoadTheme(hDlg, Values->ThemesDirectory, Values->SelectedTheme);
+
+              /* Disable the delete button */
               if (ItemCount == 1)
                 EnableWindow(GetDlgItem(hDlg,IDC_DELETETHEME), FALSE);
             }
@@ -199,165 +206,52 @@ static BOOL __stdcall ThemesDialogProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPAR
           break;
         }
         case IDC_BORDERCOLOR:
-        {
-          if (HIWORD(wParam) == BN_CLICKED)
-          {
-            ClickColorChooser((HWND)lParam);
-            Theme.BorderColor = GetColorChooserColor((HWND)lParam);
-            ThemeChanged = true;
-          }
-          break;
-        }
         case IDC_COORDINATESCOLOR:
-        {
-          if (HIWORD(wParam) == BN_CLICKED)
-          {
-            ClickColorChooser((HWND)lParam);
-            Theme.CoordinatesColor = GetColorChooserColor((HWND)lParam);
-            ThemeChanged = true;
-          }
-          break;
-        }
         case IDC_WHITESQUARESCOLOR:
-        {
-          if (HIWORD(wParam) == BN_CLICKED)
-          {
-            ClickColorChooser((HWND)lParam);
-            Theme.WhiteSquaresColor = GetColorChooserColor((HWND)lParam);
-            ThemeChanged = true;
-          }
-          break;
-        }
         case IDC_BLACKSQUARECOLOR:
-        {
-          if (HIWORD(wParam) == BN_CLICKED)
-          {
-            ClickColorChooser((HWND)lParam);
-            Theme.BlackSquaresColor = GetColorChooserColor((HWND)lParam);
-            ThemeChanged = true;
-          }
-          break;
-        }
         case IDC_LASTMOVECOLOR:
-        {
-          if (HIWORD(wParam) == BN_CLICKED)
-          {
-            ClickColorChooser((HWND)lParam);
-            Theme.LastMovedColor = GetColorChooserColor((HWND)lParam);
-            ThemeChanged = true;
-          }
-          break;
-        }
         case IDC_WHITEPIECESCOLOR:
-        {
-          if (HIWORD(wParam) == BN_CLICKED)
-          {
-            ClickColorChooser((HWND)lParam);
-            Theme.WhitePiecesColor = GetColorChooserColor((HWND)lParam);
-            ThemeChanged = true;
-          }
-          break;
-        }
         case IDC_BLACKPIECESCOLOR:
-        {
-          if (HIWORD(wParam) == BN_CLICKED)
-          {
-            ClickColorChooser((HWND)lParam);
-            Theme.BlackPiecesColor = GetColorChooserColor((HWND)lParam);
-            ThemeChanged = true;
-          }
-          break;
-        }
         case IDC_WHITEPIECESOUTLINECOLOR:
-        {
-          if (HIWORD(wParam) == BN_CLICKED)
-          {
-            ClickColorChooser((HWND)lParam);
-            Theme.WhitePiecesOutlineColor = GetColorChooserColor((HWND)lParam);
-            ThemeChanged = true;
-          }
-          break;
-        }
         case IDC_BLACKPIECESOUTLINECOLOR:
-        {
-          if (HIWORD(wParam) == BN_CLICKED)
-          {
-            ClickColorChooser((HWND)lParam);
-            Theme.BlackPiecesOutlineColor = GetColorChooserColor((HWND)lParam);
-            ThemeChanged = true;
-          }
-          break;
-        }
         case IDC_CURRENTSQUARECOLOR:
-        {
-          if (HIWORD(wParam) == BN_CLICKED)
-          {
-            ClickColorChooser((HWND)lParam);
-            Theme.CurrentSquareColor = GetColorChooserColor((HWND)lParam);
-            ThemeChanged = true;
-          }
-          break;
-        }
         case IDC_SELECTEDSQUARECOLOR:
-        {
-          if (HIWORD(wParam) == BN_CLICKED)
-          {
-            ClickColorChooser((HWND)lParam);
-            Theme.SelectedSquareColor = GetColorChooserColor((HWND)lParam);
-            ThemeChanged = true;
-          }
-          break;
-        }
         case IDC_VALIDMOVECOLOR:
-        {
-          if (HIWORD(wParam) == BN_CLICKED)
-          {
-            ClickColorChooser((HWND)lParam);
-            Theme.ValidMoveColor = GetColorChooserColor((HWND)lParam);
-            ThemeChanged = true;
-          }
-          break;
-        }
         case IDC_INVALIDMOVECOLOR:
         {
           if (HIWORD(wParam) == BN_CLICKED)
           {
+            ThemesDialogValues* Values = (ThemesDialogValues*)GetWindowLong(hDlg, GWL_USERDATA);
             ClickColorChooser((HWND)lParam);
-            Theme.InvalidMoveColor = GetColorChooserColor((HWND)lParam);
-            ThemeChanged = true;
+            Values->ThemeChanged = true;
           }
           break;
         }
         case IDC_WHITEPIECESSTYLE:
-        {
-          if (HIWORD(wParam) == BN_CLICKED);
-          {
-            Theme.WhitePiecesStyle = (ChessPieceStyle)SendMessage((HWND)lParam, CB_GETCURSEL, 0, 0);
-            ThemeChanged = true;
-          }
-          break;
-        }
         case IDC_BLACKPIECESSTYLE:
         {
-          if (HIWORD(wParam) == BN_CLICKED);
+          if (HIWORD(wParam) == CBN_SELCHANGE)
           {
-            Theme.BlackPiecesStyle = (ChessPieceStyle)SendMessage((HWND)lParam, CB_GETCURSEL, 0, 0);
-            ThemeChanged = true;
+            ThemesDialogValues* Values = (ThemesDialogValues*)GetWindowLong(hDlg, GWL_USERDATA);
+            Values->ThemeChanged = true;
           }
           break;
         }
+        case IDOK:
         case IDCANCEL:
         {
-          if (ThemeChanged)
+          ThemesDialogValues* Values = (ThemesDialogValues*)GetWindowLong(hDlg, GWL_USERDATA);
+
+          if (Values->ThemeChanged)
           {
             int Response = MessageBox(hDlg,"Do you want to save the changes to the selected theme?","Question",MB_YESNOCANCEL|MB_ICONQUESTION);
             if (Response == IDYES)
-              SaveTheme();
+              SaveTheme(hDlg, Values->ThemesDirectory, Values->SelectedTheme);
             else if (Response == IDCANCEL)
               break;
           }
           /* Close the dialog */
-          SendMessage(hDlg, WM_CLOSE, 0, 0);
+          SendMessage(hDlg, WM_CLOSE, 1, 0);
           break;
         }
       }
@@ -376,13 +270,16 @@ static BOOL __stdcall ThemesDialogProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPAR
     }
     case WM_INITDIALOG:
     {
-      /* Initialise the controls */
+      ThemesDialogValues* Values = (ThemesDialogValues*)lParam;
+      SetWindowLong(hDlg, GWL_USERDATA, (LPARAM)Values);
+
+      /* Initialize controls */
       PopulateComboList(hDlg, IDC_WHITEPIECESSTYLE, "Plain;Outlined;Plain & Outlined");
       PopulateComboList(hDlg, IDC_BLACKPIECESSTYLE, "Plain;Outlined;Plain & Outlined");
       ApplyThemeToColorChooser(hDlg);
-      /* Display Preferences */
-      ListThemes(hDlg,IDC_THEMES);
-      SelectTheme(hDlg,SendDlgItemMessage(hDlg, IDC_THEMES, LB_GETCURSEL, 0, 0));
+      ListThemes(GetDlgItem(hDlg, IDC_THEMES), Values->ThemesDirectory);
+      SelectListBoxItem(hDlg, IDC_THEMES, Values->SelectedTheme.c_str());
+      LoadTheme(hDlg, Values->ThemesDirectory, Values->SelectedTheme);
       return TRUE;
     }
     case WM_THEMECHANGED:
@@ -396,9 +293,12 @@ static BOOL __stdcall ThemesDialogProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPAR
 
 // PUBLIC FUNCTIONS ------------------------------------------------------------
 
-void ShowThemesDialog(HWND hParent, string Theme)
+void ShowThemesDialog(HINSTANCE Instance, HWND hParent, string ThemesDirectory, string SelectedTheme)
 {
-  HINSTANCE Instance = (hParent != NULL ? (HINSTANCE)GetWindowLong(hParent, GWL_HINSTANCE) : GetModuleHandle(NULL));
-  CurrentTheme = Theme;
-  DialogBox(Instance,MAKEINTRESOURCE(IDD_THEMESDIALOG),hParent,(DLGPROC)ThemesDialogProc);
+  ThemesDialogValues* Values = new ThemesDialogValues;
+  Values->ThemesDirectory = ThemesDirectory;
+  Values->SelectedTheme = SelectedTheme;
+  Values->ThemeChanged = false;
+  DialogBoxParam(Instance,MAKEINTRESOURCE(IDD_THEMESDIALOG),hParent,(DLGPROC)ThemesDialogProc, (LPARAM)Values);
+  delete Values;
 }

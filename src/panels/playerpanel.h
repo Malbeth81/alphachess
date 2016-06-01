@@ -20,51 +20,52 @@
 #ifndef PLAYERPANEL_H_
 #define PLAYERPANEL_H_
 
+#define WINVER 0x0500
+#include "../chess/chessgame.h"
+#include "../resource.h"
+#include "../theme.h"
+#include <custombutton.h>
 #include <winutils.h>
 #include <windows.h>
-#include "../chessset.h"
-#include "../chess/chessengine.h"
-
-enum {Ready=64};
-
-typedef void (__stdcall *PLAYERPANELBUTTONCLICKEDPROC)(ChessPieceColor Color);
 
 class PlayerPanel
 {
 public:
-  PLAYERPANELBUTTONCLICKEDPROC JoinButtonClickedProc;
-  PLAYERPANELBUTTONCLICKEDPROC ReadyButtonClickedProc;
-
-  PlayerPanel(HWND hParent, RECT* R, ChessPieceColor NewColor);
+  PlayerPanel(HINSTANCE hInstance, HWND hParent, RECT* R, ChessPieceColor NewColor);
   ~PlayerPanel();
+  void EnableJoinButton(const bool Value);
+  void EnableLeaveButton(const bool Value);
+  void EnableReadyButton(const bool Value);
   HWND GetHandle();
   void Invalidate();
   void SetChessSet(ChessSet* NewSet);
-  void SetState(int Result);
-  void ShowJoinButton(const bool Value);
-  void ShowLeaveButton(const bool Value);
-  void ShowReadyButton(const bool Value);
+  void SetGame(ChessGame* NewGame);
+  void SetReady(bool Value);
 private:
   static ATOM ClassAtom;
+  static WNDPROC OldPlayerButtonProc;
 
   HWND Handle;
-  HWND JoinButton;
-  HWND ReadyButton;
+  HWND PlayerButton;
+  HMENU PlayerMenu;
 
+  ChessGame* Game;
   ChessPieceColor Color;
   ChessSet* Set;
-  int State;
+  bool IsReady;
   int Height;
   int Width;
 
   /* GUI functions */
   void DrawChessPiece(HDC DC, int X, int Y);
   void DrawPlayerInformation(HDC DC, int X, int Y, int Width, int Height);
+  HMENU GetMenu();
   /* Event functions */
   void Paint();
   void UpdateSize(int NewWidth, int NewHeight);
   /* WinAPI functions */
   static LRESULT __stdcall PanelWindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
+  static LRESULT __stdcall PlayerButtonProc(HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lParam);
 };
 
 #endif
