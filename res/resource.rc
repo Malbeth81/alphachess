@@ -1,0 +1,244 @@
+/*
+* Resource.rc - A collection of resources (Menu, Icons, Dialogs).
+*
+* Copyright (C) 2007-2008 Marc-André Lamothe.
+*
+* This program is free software; you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation; either version 2 of the License, or
+* (at your option) any later version.
+*
+* This program is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+* GNU Library General Public License for more details.
+*
+* You should have received a copy of the GNU General Public License
+* along with this program; if not, write to the Free Software
+* Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+*/
+#include "../src/resource.h"
+#include <windows.h>
+
+1                   24            "res/theme.manifest"
+IDI_MAINICON        ICON          "res/alphachess.ico"
+IDI_CURSORGRAB      CURSOR        "res/grab.cur"
+IDI_CURSORHAND      CURSOR        "res/hand.cur"
+
+STRINGTABLE
+BEGIN
+    /* MENU ITEM STRINGS */
+    IDS_MENU_GAME                 "&Game"
+    IDS_MENU_GAME_LOCAL           "Play a &local game...\tCtrl+L"
+    IDS_MENU_GAME_NETWORK         "Play an &online game...\tCtrl+O"
+    IDS_MENU_GAME_TAKEBACKMOVE    "&Take back the last move\tCtrl+T"
+    IDS_MENU_GAME_PAUSE           "&Pause\tCtrl+P"
+    IDS_MENU_GAME_OFFERDRAW       "&Offer a draw\tCtrl+D"
+    IDS_MENU_GAME_RESIGN          "&Resign\tCtrl+R"
+    IDS_MENU_GAME_EXIT            "&Exit\tAlt+F4"
+    IDS_MENU_EDIT                 "&Edit"
+    IDS_MENU_EDIT_LOADGAME        "&Load a saved game..."
+    IDS_MENU_EDIT_SAVEGAME        "&Save the game as..."
+    IDS_MENU_EDIT_LOADPOSITION    "L&oad chessboard position..."
+    IDS_MENU_EDIT_SAVEPOSITION    "S&ave chessboard position..."
+    IDS_MENU_EDIT_COPYGAME        "&Copy game information"
+    IDS_MENU_EDIT_PASTEGAME       "&Paste game information"
+    IDS_MENU_EDIT_COPYPOSITION    "C&opy chessboard position" 
+    IDS_MENU_EDIT_PASTEPOSITION   "P&aste chessboard position"
+    IDS_MENU_EDIT_PREFERENCES     "Pr&eferences...\tF9"
+    IDS_MENU_VIEW                 "&View"
+    IDS_MENU_VIEW_PLAYERS         "&Players information\tF2"
+    IDS_MENU_VIEW_MOVES           "&List of moves\tF3"
+    IDS_MENU_VIEW_CAPTURES        "&Captured pieces\tF4"
+    IDS_MENU_VIEW_HISTORY         "&History of games...\tF7"
+    IDS_MENU_VIEW_SWITCH          "&Switch the player's position\tF8"
+    IDS_MENU_HELP                 "&Help"
+    IDS_MENU_HELP_HELP            "&Help\tF1"
+    IDS_MENU_HELP_UPDATE          "Look for &updates..."
+    IDS_MENU_HELP_ABOUT           "&About"
+    
+    /* LIST VIEW COLUMN HEADERS STRING */
+    IDS_GAMEROOMLIST_COL1         "#"
+    IDS_GAMEROOMLIST_COL2         "Name"
+    IDS_GAMEROOMLIST_COL3         "Players"
+    IDS_GAMEHISTORYLIST_COL1      "Date"
+    IDS_GAMEHISTORYLIST_COL2      "White player"
+    IDS_GAMEHISTORYLIST_COL3      "Black player"
+    IDS_GAMEHISTORYLIST_COL4      "White's time"
+    IDS_GAMEHISTORYLIST_COL5      "Black's time"
+    IDS_GAMEHISTORYLIST_COL6      "Moves"
+    IDS_GAMEHISTORYLIST_COL7      "Result"
+    IDS_PLAYERLIST_COL1           "#"
+    IDS_PLAYERLIST_COL2           "Player"
+END
+
+IDR_MAINACCELERATORS ACCELERATORS
+BEGIN
+    "L",            IDS_MENU_GAME_LOCAL, VIRTKEY, CONTROL
+    "O",            IDS_MENU_GAME_NETWORK, VIRTKEY, CONTROL
+    "P",            IDS_MENU_GAME_PAUSE, VIRTKEY, CONTROL
+    "T",            IDS_MENU_GAME_TAKEBACKMOVE, VIRTKEY, CONTROL
+    "D",            IDS_MENU_GAME_OFFERDRAW, VIRTKEY, CONTROL
+    "R",            IDS_MENU_GAME_RESIGN, VIRTKEY, CONTROL
+    VK_F9,          IDS_MENU_EDIT_PREFERENCES, VIRTKEY
+    VK_F2,          IDS_MENU_VIEW_PLAYERS, VIRTKEY
+    VK_F3,          IDS_MENU_VIEW_MOVES, VIRTKEY
+    VK_F4,          IDS_MENU_VIEW_CAPTURES, VIRTKEY
+    VK_F7,          IDS_MENU_VIEW_HISTORY, VIRTKEY
+    VK_F8,          IDS_MENU_VIEW_SWITCH, VIRTKEY
+    VK_F1,          IDS_MENU_HELP_HELP, VIRTKEY
+END
+
+IDD_ABOUT DIALOGEX 0,0,200,80
+STYLE DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_SYSMENU | WS_CAPTION
+CAPTION "About"
+FONT 8,"MS Shell Dlg 2",400,0,1
+BEGIN
+    ICON            "IDI_MAINICON",IDC_STATIC,7,7,32,32
+    LTEXT           "AlphaChess 4.0.0",IDC_APPLICATIONNAME,43,7,150,8
+    LTEXT           "Copyright 2003-2007 Marc-Andre Lamothe.",IDC_COPYRIGHT,43,26,150,8
+    LTEXT           "http://www.heresysoft.com",IDC_URL,43,37,150,8
+    DEFPUSHBUTTON   "&Close",IDOK,72,59,50,14
+END
+
+IDD_INPUT DIALOGEX 0, 0, 200, 53
+STYLE WS_POPUP | WS_SYSMENU | WS_CAPTION | DS_MODALFRAME | DS_CENTER
+CAPTION ""
+FONT 8, "MS Shell Dlg 2",400,0,1
+BEGIN
+    LTEXT             "",IDC_INPUTLBL,5,5,190,12
+    EDITTEXT          IDC_INPUT,5,15,190,14,WS_TABSTOP
+    DEFPUSHBUTTON     "O&K",IDOK,91,33,50,15
+    PUSHBUTTON        "&Cancel",IDCANCEL,145,33,50,15
+END
+
+IDD_PREFERENCES DIALOGEX 0,0,300,229
+STYLE DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_SYSMENU | WS_CAPTION
+CAPTION "Preferences"
+FONT 8,"MS Shell Dlg 2",400,0,1
+BEGIN
+    AUTOCHECKBOX    "Look for a new version of AlphaChess on startup.",IDC_AUTOUPDATE,7,7,286,10
+    AUTOCHECKBOX    "Automatically switch the view to the active player's perspective in a local game.",IDC_AUTOINVERTVIEW,7,22,286,10
+    AUTOCHECKBOX    "Keep the AlphaChess window on top of other windows.",IDC_ALWAYSONTOP,7,37,286,10
+    AUTOCHECKBOX    "Keep the AlphaChess window inside the desktop.",IDC_ALWAYSVISIBLE,7,52,286,10
+    AUTOCHECKBOX    "Always promote pawns to queens.",IDC_PROMOTETOQUEEN,7,68,286,10
+    RTEXT           "Use the following color theme:",IDC_THEMELBL,7,87,181,8
+    COMBOBOX        IDC_THEME,193,85,100,120,WS_TABSTOP | CBS_DROPDOWNLIST | WS_VSCROLL | CBS_HASSTRINGS
+    PUSHBUTTON      "Manage themes",IDC_MANAGETHEMES,193,101,100,14
+    RTEXT           "Use the following chess set:",IDC_CHESSSETLBL,7,122,181,8
+    COMBOBOX        IDC_CHESSSET,193,120,100,120,WS_TABSTOP | CBS_DROPDOWNLIST | WS_VSCROLL | CBS_HASSTRINGS
+    RTEXT           "Use the following move history notation:",IDC_MOVELISTNOTATIONLBL,7,138,181,8
+    COMBOBOX        IDC_MOVELISTNOTATION,193,136,100,120,WS_TABSTOP | CBS_DROPDOWNLIST | WS_VSCROLL | CBS_HASSTRINGS
+    AUTOCHECKBOX    "Show the squares coordinates on the chess board.",IDC_SHOWCOORDINATES,7,157,286,10
+    AUTOCHECKBOX    "Show the square of the last moved piece on the chess board.",IDC_SHOWLASTMOVE,7,172,286,10
+    AUTOCHECKBOX    "Show the validity of a possible move on the chess board.",IDC_SHOWINVALIDMOVES,7,187,286,10
+    DEFPUSHBUTTON     "O&K",IDOK,133,207,50,15
+    PUSHBUTTON        "&Cancel",IDCANCEL,188,207,50,15
+    PUSHBUTTON        "&Apply",IDAPPLY,243,207,50,15
+END
+
+IDD_THEMESDIALOG DIALOGEX 0,0,370,237
+STYLE DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_SYSMENU | WS_CAPTION
+CAPTION "Themes"
+FONT 8,"MS Shell Dlg 2",400,0,1
+BEGIN
+    LTEXT           "Themes:",IDC_THEMESLBL,7,4,96,8
+    LISTBOX         IDC_THEMES,7,14,94,160,WS_TABSTOP | WS_VSCROLL
+    PUSHBUTTON      "New theme",IDC_NEWTHEME,7,178,94,14
+    PUSHBUTTON      "Delete theme",IDC_DELETETHEME,7,196,94,14
+    
+    GROUPBOX        "Chess board:",IDC_STATIC,108,7,255,70
+    RTEXT           "Border colour:",IDC_BORDERLBL,113,20,90,8
+    CONTROL         "0",IDC_BORDERCOLOR,WC_BUTTON,WS_TABSTOP | BS_OWNERDRAW,208,17,25,14
+    RTEXT           "Coordinates colour:",IDC_COORDINATESLBL,238,20,90,8
+    CONTROL         "0",IDC_COORDINATESCOLOR,WC_BUTTON,WS_TABSTOP | BS_OWNERDRAW,333,17,25,14
+    RTEXT           "White squares colour:",IDC_WHITESQUARELBL,113,40,90,8
+    CONTROL         "0",IDC_WHITESQUARESCOLOR,WC_BUTTON,WS_TABSTOP | BS_OWNERDRAW,208,37,25,14
+    RTEXT           "Black squares colour:",IDC_BLACKSQUARELBL,238,40,90,8
+    CONTROL         "0",IDC_BLACKSQUARECOLOR,WC_BUTTON,WS_TABSTOP | BS_OWNERDRAW,333,37,25,14
+    RTEXT           "Last move colour:",IDC_LASTMOVELBL,113,60,90,8
+    CONTROL         "0",IDC_LASTMOVECOLOR,WC_BUTTON,WS_TABSTOP | BS_OWNERDRAW,208,57,25,14
+    
+    GROUPBOX        "White pieces:",IDC_STATIC,108,82,125,73
+    RTEXT           "Style:",IDC_WHITEPIECESSTYLELBL,113,97,30,8
+    COMBOBOX        IDC_WHITEPIECESSTYLE,148,95,80,120,WS_TABSTOP | CBS_DROPDOWNLIST | WS_VSCROLL | CBS_HASSTRINGS
+    RTEXT           "Filling colour:",IDC_WHITEPIECESLBL,113,117,85,8
+    CONTROL         "0",IDC_WHITEPIECESCOLOR,WC_BUTTON,WS_TABSTOP | BS_OWNERDRAW,203,115,25,14
+    RTEXT           "Outline colour:",IDC_WHITEPIECESOUTLINELBL,113,137,85,8
+    CONTROL         "0",IDC_WHITEPIECESOUTLINECOLOR,WC_BUTTON,WS_TABSTOP | BS_OWNERDRAW,203,135,25,14
+    
+    GROUPBOX        "Black pieces:",IDC_STATIC,238,82,125,73
+    RTEXT           "Style:",IDC_BLACKPIECESSTYLELBL,243,97,30,8
+    COMBOBOX        IDC_BLACKPIECESSTYLE,278,95,80,120,WS_TABSTOP | CBS_DROPDOWNLIST | WS_VSCROLL | CBS_HASSTRINGS
+    RTEXT           "Filling colour:",IDC_BLACKPIECESLBL,243,117,85,8
+    CONTROL         "0",IDC_BLACKPIECESCOLOR,WC_BUTTON,WS_TABSTOP | BS_OWNERDRAW,333,115,25,14
+    RTEXT           "Outline colour:",IDC_BLACKPIECESOUTLINELBL,243,137,85,8
+    CONTROL         "0",IDC_BLACKPIECESOUTLINECOLOR,WC_BUTTON,WS_TABSTOP | BS_OWNERDRAW,333,135,25,14
+    
+    GROUPBOX        "Cursor indicator:",IDC_STATIC,108,160,255,50
+    RTEXT           "Current square colour:",IDC_CURRENTSQUARELBL,113,173,90,8
+    CONTROL         "0",IDC_CURRENTSQUARECOLOR,WC_BUTTON,WS_TABSTOP | BS_OWNERDRAW,208,170,25,14
+    RTEXT           "Selected square colour:",IDC_SELECTEDSQUARELBL,238,173,90,8
+    CONTROL         "0",IDC_SELECTEDSQUARECOLOR,WC_BUTTON,WS_TABSTOP | BS_OWNERDRAW,333,170,25,14
+    RTEXT           "Valid move colour:",IDC_VALIDMOVELBL,113,193,90,8
+    CONTROL         "0",IDC_VALIDMOVECOLOR,WC_BUTTON,WS_TABSTOP | BS_OWNERDRAW,208,190,25,14
+    RTEXT           "Invalid move colour:",IDC_INVALIDMOVELBL,238,193,90,8
+    CONTROL         "0",IDC_INVALIDMOVECOLOR,WC_BUTTON,WS_TABSTOP | BS_OWNERDRAW,333,190,25,14
+    
+    DEFPUSHBUTTON   "&Close",IDCANCEL,313,216,50,14
+END
+
+IDD_LOCALGAME DIALOGEX 0,0,194,122
+STYLE DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_SYSMENU | WS_CAPTION
+CAPTION "Play a local game"
+FONT 8,"MS Shell Dlg 2",400,0,1
+BEGIN
+    RTEXT           "Game type:",IDC_GAMETYPELBL,7,9,67,8
+    COMBOBOX        IDC_GAMETYPE,80,7,107,60,WS_TABSTOP | CBS_DROPDOWNLIST | CBS_HASSTRINGS | WS_VSCROLL
+    RTEXT           "White player:",IDC_WHITEPLAYERNAMELBL,7,31,67,8
+    EDITTEXT        IDC_WHITEPLAYERNAME,80,29,107,13,WS_TABSTOP
+    AUTOCHECKBOX    "Computer controlled.",IDC_COMPUTERWHITE,80,45,107,12
+    RTEXT           "Black player:",IDC_BLACKPLAYERNAMELBL,7,67,67,8
+    EDITTEXT        IDC_BLACKPLAYERNAME,80,65,107,13,WS_TABSTOP
+    AUTOCHECKBOX    "Computer controlled.",IDC_COMPUTERBLACK,80,81,107,12
+    DEFPUSHBUTTON   "O&K",IDOK,83,101,50,14
+    PUSHBUTTON      "&Cancel",IDCANCEL,137,101,50,14
+END
+
+IDD_NETWORKGAME DIALOGEX 0,0,282,187
+STYLE DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_SYSMENU | WS_CAPTION
+CAPTION "Play an online game"
+FONT 8,"MS Shell Dlg 2",400,0,1
+BEGIN
+    RTEXT           "Your name:",IDC_PLAYERNAMELBL,7,9,67,8
+    EDITTEXT        IDC_PLAYERNAME,80,7,195,13,WS_TABSTOP
+    LTEXT           "Game rooms:",IDC_GAMEROOMS,7,25,120,8
+    CONTROL         "",IDC_GAMEROOMLIST,WC_LISTVIEW,WS_TABSTOP | WS_BORDER | LVS_SINGLESEL | LVS_REPORT | LVS_NOSORTHEADER | LVS_SHOWSELALWAYS,7,37,268,125
+    PUSHBUTTON      "&New game room",IDC_NEWGAMEROOM,7,166,80,14
+    PUSHBUTTON      "&Refresh list",IDC_REFRESHGAMEROOMS,91,166,65,14
+    DEFPUSHBUTTON   "O&K",IDOK,171,166,50,14
+    PUSHBUTTON      "&Cancel",IDCANCEL,225,166,50,14
+END
+
+IDD_GAMEHISTORY DIALOGEX 0,0,450,170
+STYLE DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_SYSMENU | WS_CAPTION
+CAPTION "History of games"
+FONT 8,"MS Shell Dlg 2",400,0,1
+BEGIN
+    LTEXT           "History of games:",IDC_GAMEHISTORY,7,4,120,8
+    CONTROL         "",IDC_GAMEHISTORYLIST,WC_LISTVIEW,WS_TABSTOP | WS_BORDER | LVS_SINGLESEL | LVS_REPORT,7,16,436,130
+    PUSHBUTTON      "&Delete game",IDC_DELETEGAME,7,150,72,14
+    DEFPUSHBUTTON   "&Close",IDCANCEL,393,150,50,14
+END
+
+IDD_PROMOTION DIALOGEX 0,0,178,57
+STYLE DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_SYSMENU | WS_CAPTION
+CAPTION "Piece selection"
+FONT 8,"MS Shell Dlg 2",400,0,1
+BEGIN
+    LTEXT           "Choose a piece to promote your pawn to:",IDC_PROMOTION,7,4,164,8
+    PUSHBUTTON      "Rook",IDC_ROOK,7,18,38,32,BS_OWNERDRAW
+    PUSHBUTTON      "Knight",IDC_KNIGHT,49,18,38,32,BS_OWNERDRAW
+    PUSHBUTTON      "Bishop",IDC_BISHOP,91,18,38,32,BS_OWNERDRAW
+    PUSHBUTTON      "Queen",IDC_QUEEN,133,18,38,32,BS_OWNERDRAW
+END

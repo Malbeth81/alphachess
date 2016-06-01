@@ -1,0 +1,1 @@
+Add option, show icon for moved piece and/or captured piece in move list 
