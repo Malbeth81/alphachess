@@ -81,8 +81,8 @@ static INT_PTR __stdcall AboutDialogProc(HWND hDlg, UINT uMsg, WPARAM wParam, LP
     {
       /* Initialize controls */
       DC = GetDC(hDlg);
-      SendDlgItemMessage(hDlg, IDC_APPLICATIONNAME, WM_SETFONT, (WPARAM)EasyCreateFont(DC, "MS Shell Dlg", 14, fsBold), 0);
-      SendDlgItemMessage(hDlg, IDC_APPLICATIONVERSION, WM_SETFONT, (WPARAM)EasyCreateFont(DC, "MS Shell Dlg", 9, fsBold), 0);
+      SendDlgItemMessage(hDlg, IDC_APPLICATIONNAME, WM_SETFONT, (WPARAM)EasyCreateFont(DC, "MS Shell Dlg", 16, fsBold), 0);
+      SendDlgItemMessage(hDlg, IDC_APPLICATIONVERSION, WM_SETFONT, (WPARAM)EasyCreateFont(DC, "MS Shell Dlg", 10, fsBold), 0);
       DefaultStaticWndProc = SetWindowLong(GetDlgItem(hDlg, IDC_URL), GWL_WNDPROC, (LONG)&StaticWndProc);
       SendDlgItemMessage(hDlg, IDC_URL, WM_SETFONT, (WPARAM)EasyCreateFont(DC, "MS Shell Dlg", 8, fsUnderline), 0);
       ReleaseDC(hDlg, DC);

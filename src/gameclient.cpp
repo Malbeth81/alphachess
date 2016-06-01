@@ -26,8 +26,8 @@
 /* Static information */
 const int GameClient::Port = 2570;
 const string GameClient::Id = "AlphaChess";
-const int GameClient::SupportedVersion = 400;
-const int GameClient::Version = 401;
+const int GameClient::SupportedVersion = 403;
+const int GameClient::Version = 403;
 
 // Public functions ------------------------------------------------------------
 
@@ -495,7 +495,21 @@ bool GameClient::OpenConnection()
     /* Validate the version information */
     if (Id.compare(RemoteId) == 0 && RemoteVersion >= SupportedVersion)
       return true;
+    else
+    {
+      /* Close connection */
+      Socket->Close();
+
+      /* Update the interface */
+      PostMessage(hWindow,WM_UPDATEINTERFACE,MAKEWPARAM(VersionMismatch,0),0);
+    }
   }
+  else
+  {
+    /* Update the interface */
+    PostMessage(hWindow,WM_UPDATEINTERFACE,MAKEWPARAM(ConnectionFailed,0),0);
+  }
+
   return false;
 }
 
@@ -953,8 +967,6 @@ unsigned long __stdcall GameClient::ThreadEntry(void* arg)
     Client->ReceiveData();
     Client->CloseConnection();
   }
-  else
-    PostMessage(Client->hWindow,WM_UPDATEINTERFACE,MAKEWPARAM(ConnectionFailed,0),0);
   Client->hThread = NULL;
   return 0;
 }

@@ -492,16 +492,13 @@ void AlphaChess::Notify(const int Event, const void* Param)
       }
       else if (Game->GetState() == Started)
       {
-        if (LastGameState == Paused)
+        if (NetworkGame)
         {
           /* Add a message in the chat panel */
-          if (NetworkGame)
+          if (LastGameState == Paused)
+            hChatPanel->AddLine("The game has resumed.");
+          else
             hChatPanel->AddLine("The game has started.");
-        }
-        else if (NetworkGame)
-        {
-          /* Add a message in the chat panel */
-          hChatPanel->AddLine("The game has resumed.");
 
           /* Disable menu items */
           if (NetworkClient->GetLocalPlayer() == NetworkClient->GetBlackPlayer())
@@ -560,9 +557,9 @@ void AlphaChess::Notify(const int Event, const void* Param)
           if (Game->GetState() == EndedInDraw || Game->GetState() == EndedInStaleMate)
             hChatPanel->AddLine("The game has ended in a draw.");
           else if (Game->GetState() == EndedInForfeit)
-            hChatPanel->AddLine(Game->GetPlayer(!Game->GetActivePlayer())->Name + " has resigned.");
+            hChatPanel->AddLine(Game->GetPlayer(Game->GetActivePlayer())->Name + " has resigned.");
           else
-            hChatPanel->AddLine(Game->GetPlayer(Game->GetActivePlayer())->Name + " has won.");
+            hChatPanel->AddLine(Game->GetPlayer(!Game->GetActivePlayer())->Name + " has won.");
 
           /* Notify the server */
           NetworkClient->GameHasEnded();
@@ -941,13 +938,21 @@ void AlphaChess::UpdateInterface(WPARAM wParam, LPARAM lParam)
             SetCursor(LoadCursor(NULL,IDC_WAIT));
         }
       }
+      else if (!NetworkClient->IsInRoom())
+        NetworkClient->Disconnect();
       delete Values;
       break;
     }
     case ConnectionFailed:
     {
       ChangeCursor(NULL);
-      MessageBox(Handle,"Connection attempt to the game server failed!\nMake sure that you have an active Internet connection and try again.","Play a new online game",MB_OK|MB_ICONERROR);
+      MessageBox(Handle,"An error occurred while trying to connect to the game server!\nPlease verify that you have an active Internet connection and try again.","Play a new online game",MB_OK|MB_ICONERROR);
+      break;
+    }
+    case VersionMismatch:
+    {
+      ChangeCursor(NULL);
+      MessageBox(Handle,"Your game version is no longer supported by the game server!\nPlease visit http://www.heresysoft.com to download the latest version of the application.","Play a new online game",MB_OK|MB_ICONERROR);
       break;
     }
     case Disconnected:
@@ -963,14 +968,18 @@ void AlphaChess::UpdateInterface(WPARAM wParam, LPARAM lParam)
       hWhitePlayerPanel->EnableJoinButton(false);
       hWhitePlayerPanel->EnableLeaveButton(false);
       hWhitePlayerPanel->EnableReadyButton(false);
+      hWhitePlayerPanel->ShowTooltip(false);
       hBlackPlayerPanel->EnableJoinButton(false);
       hBlackPlayerPanel->EnableLeaveButton(false);
       hBlackPlayerPanel->EnableReadyButton(false);
+      hBlackPlayerPanel->ShowTooltip(false);
       break;
     }
     case GameDataReceived:
     {
-      Game->LoadFromImage((ChessGameImage*)lParam);
+      ChessGameImage* Data = (ChessGameImage*)lParam;
+      Game->LoadFromImage(Data);
+      delete Data;
       break;
     }
     case GameDataRequested:
@@ -1050,6 +1059,8 @@ void AlphaChess::UpdateInterface(WPARAM wParam, LPARAM lParam)
         {
           /* Hide buttons */
           Game->Reset();
+          Game->SetPlayerName(Black, "");
+          Game->SetPlayerName(White, "");
           hWhitePlayerPanel->EnableJoinButton(false);
           hWhitePlayerPanel->EnableLeaveButton(false);
           hWhitePlayerPanel->EnableReadyButton(false);
@@ -1115,7 +1126,7 @@ void AlphaChess::UpdateInterface(WPARAM wParam, LPARAM lParam)
           Game->TakeBackMove();
 
           /* Add a message in the chat panel */
-          hChatPanel->AddLine(Game->GetPlayer(!Game->GetActivePlayer())->Name + " has took back his last move.");
+          hChatPanel->AddLine(Game->GetPlayer(Game->GetActivePlayer())->Name + " has took back his last move.");
           break;
         }
       }
@@ -1185,7 +1196,9 @@ void AlphaChess::UpdateInterface(WPARAM wParam, LPARAM lParam)
     case PlayerStateChanged:
     {
       /* Update player panels */
+      hBlackPlayerPanel->SetReady(NetworkClient->GetBlackPlayer() != NULL ? NetworkClient->GetBlackPlayer()->Ready : false);
       hBlackPlayerPanel->Invalidate();
+      hWhitePlayerPanel->SetReady(NetworkClient->GetWhitePlayer() != NULL ? NetworkClient->GetWhitePlayer()->Ready : false);
       hWhitePlayerPanel->Invalidate();
 
       /* Show the player's ready button */
@@ -1224,7 +1237,6 @@ void AlphaChess::UpdateInterface(WPARAM wParam, LPARAM lParam)
         hBlackPlayerPanel->EnableJoinButton(false);
         hBlackPlayerPanel->EnableLeaveButton(Player == NetworkClient->GetLocalPlayer());
         hBlackPlayerPanel->ShowTooltip(false);
-        hWhitePlayerPanel->ShowTooltip(Player != NetworkClient->GetLocalPlayer());
       }
 
       /* Update the black player */
@@ -1242,7 +1254,6 @@ void AlphaChess::UpdateInterface(WPARAM wParam, LPARAM lParam)
         hWhitePlayerPanel->EnableJoinButton(false);
         hWhitePlayerPanel->EnableLeaveButton(Player == NetworkClient->GetLocalPlayer());
         hWhitePlayerPanel->ShowTooltip(false);
-        hBlackPlayerPanel->ShowTooltip(Player != NetworkClient->GetLocalPlayer());
       }
 
       /* Update the player list */
@@ -1500,15 +1511,16 @@ LRESULT __stdcall AlphaChess::WindowProc(HWND hWnd, UINT Msg, WPARAM wParam, LPA
         /* Close confirmation */
         if ((Window->Game->GetState() == Started || Window->Game->GetState() == Paused) && (Window->NetworkClient->GetLocalPlayer() == Window->NetworkClient->GetBlackPlayer() || Window->NetworkClient->GetLocalPlayer() == Window->NetworkClient->GetWhitePlayer()))
         {
-          Window->Game->PauseGame();
-          int Result = MessageBox(hWnd,"You have a game in progress, do you want to save it before exiting AlphaChess?","Exit AlphaChess",MB_YESNOCANCEL|MB_ICONQUESTION);
+          if (!Window->NetworkGame)
+            Window->Game->PauseGame();
 
-          /* Save game */
+          int Result = MessageBox(hWnd,"You have a game in progress, do you want to save it before exiting AlphaChess?","Exit AlphaChess",MB_YESNOCANCEL|MB_ICONQUESTION);
           if (Result == IDYES)
             Window->SaveGame();
           else if (Result == IDCANCEL)
           {
-            Window->Game->ResumeGame();
+            if (!Window->NetworkGame)
+              Window->Game->ResumeGame();
             return 0;
           }
         }
@@ -1531,13 +1543,16 @@ LRESULT __stdcall AlphaChess::WindowProc(HWND hWnd, UINT Msg, WPARAM wParam, LPA
               /* Show confirmation */
               if (Window->Game->GetState() == Started || Window->Game->GetState() == Paused)
               {
-                Window->Game->PauseGame();
+                if (!Window->NetworkGame)
+                  Window->Game->PauseGame();
+
                 int Result = MessageBox(hWnd,"You have a game in progress, do you want to save it?","Play a new local game",MB_YESNOCANCEL|MB_ICONQUESTION);
                 if (Result == IDYES)
                   Window->SaveGame();
                 else if (Result == IDCANCEL)
                 {
-                  Window->Game->ResumeGame();
+                  if (!Window->NetworkGame)
+                    Window->Game->ResumeGame();
                   break;
                 }
               }
@@ -1581,13 +1596,16 @@ LRESULT __stdcall AlphaChess::WindowProc(HWND hWnd, UINT Msg, WPARAM wParam, LPA
               /* Show confirmation */
               if (Window->Game->GetState() == Started || Window->Game->GetState() == Paused)
               {
-                Window->Game->PauseGame();
+                if (!Window->NetworkGame)
+                  Window->Game->PauseGame();
+
                 int Result = MessageBox(hWnd,"You have a game in progress, do you want to save it?","Play a new online game",MB_YESNOCANCEL|MB_ICONQUESTION);
                 if (Result == IDYES)
                   Window->SaveGame();
                 else if (Result == IDCANCEL)
                 {
-                  Window->Game->ResumeGame();
+                  if (!Window->NetworkGame)
+                    Window->Game->ResumeGame();
                   break;
                 }
               }
@@ -1603,21 +1621,28 @@ LRESULT __stdcall AlphaChess::WindowProc(HWND hWnd, UINT Msg, WPARAM wParam, LPA
             }
             case IDS_MAINMENU_GAME_LOADGAME:
             {
-              if (Window->Game->GetState() == Started)
-                Window->Game->PauseGame();
-              char* Filename = ShowSavedGamesDialog((HINSTANCE)GetWindowLong(hWnd, GWL_HINSTANCE), hWnd, GamesDirectory);
-              if (Filename != NULL)
-                Window->Game->LoadFromFile(Filename);
-              delete[] Filename;
+              if (!Window->NetworkGame)
+              {
+                if (Window->Game->GetState() == Started)
+                  Window->Game->PauseGame();
+                char* Filename = ShowSavedGamesDialog((HINSTANCE)GetWindowLong(hWnd, GWL_HINSTANCE), hWnd, GamesDirectory);
+                if (Filename != NULL)
+                  Window->Game->LoadFromFile(Filename);
+                delete[] Filename;
+              }
               break;
             }
             case IDS_MAINMENU_GAME_SAVEGAME:
             {
               if (Window->Game->GetState() == Started)
               {
-                Window->Game->PauseGame();
+                if (!Window->NetworkGame)
+                  Window->Game->PauseGame();
+
                 Window->SaveGame();
-                Window->Game->ResumeGame();
+
+                if (!Window->NetworkGame)
+                  Window->Game->ResumeGame();
               }
               else
                 Window->SaveGame();

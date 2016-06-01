@@ -33,8 +33,8 @@ using namespace std;
 /* Value of the lower word value of the wParam parameter of the WM_UPDATEINTERFACE message */
 enum InterfaceUpdate
 {
-  Disconnected, ConnectionSucceeded, ConnectionFailed, GameDataReceived, GameDataRequested, HostChanged,
-  MessageReceived, MoveReceived, NotificationReceived, PlayerJoined, PlayerLeft, PlayerNameChanged,
+  Disconnected, ConnectionSucceeded, ConnectionFailed, VersionMismatch, GameDataReceived, GameDataRequested,
+  HostChanged, MessageReceived, MoveReceived, NotificationReceived, PlayerJoined, PlayerLeft, PlayerNameChanged,
   PlayerStateChanged, PlayerTimeChanged, PlayerTypeChanged, PromotionReceived, RequestReceived, RoomInfoReceived
 };
 

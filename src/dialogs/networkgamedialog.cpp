@@ -19,6 +19,8 @@
 */
 #include "networkgamedialog.h"
 
+#define RefreshTimer 10
+
 static HWND Dialog = NULL;
 
 // WINAPI FUNCTIONS ------------------------------------------------------------
@@ -135,6 +137,7 @@ static INT_PTR __stdcall NetworkGameDialogProc(HWND hDlg, UINT uMsg, WPARAM wPar
     case WM_CLOSE:
     {
       /* Close the dialog */
+      KillTimer(hDlg, RefreshTimer);
       EndDialog(hDlg, wParam);
       Dialog = NULL;
       return TRUE;
@@ -162,6 +165,9 @@ static INT_PTR __stdcall NetworkGameDialogProc(HWND hDlg, UINT uMsg, WPARAM wPar
       PostMessage(GetDlgItem(hDlg,IDC_PLAYERNAME), EM_SETSEL, (WPARAM)-1, 0);
       SendMessage(GetParent(hDlg), WM_UPDATEROOMLIST, 0, 0);
 
+      /* Create Timer */
+      SetTimer(hDlg, RefreshTimer, 10000, NULL);
+
       Dialog = hDlg;
       return TRUE;
     }
@@ -175,6 +181,12 @@ static INT_PTR __stdcall NetworkGameDialogProc(HWND hDlg, UINT uMsg, WPARAM wPar
           break;
         }
       }
+      return TRUE;
+    }
+    case WM_TIMER:
+    {
+      if (wParam == RefreshTimer)
+        SendMessage(hDlg, WM_COMMAND, MAKEWPARAM(IDC_REFRESHGAMEROOMS, BN_CLICKED), (LPARAM)GetDlgItem(hDlg,IDC_REFRESHGAMEROOMS));
       return TRUE;
     }
   }

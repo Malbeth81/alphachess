@@ -234,7 +234,9 @@ void PlayerPanel::DrawPlayerInformation(HDC DC, int X, int Y, int Width, int Hei
     }
     /* Draw the player's status */
     string Text;
-    if (Game->GetActivePlayer() == Color)
+    if (IsReady)
+      Text = "Ready";
+    else if (Game->GetActivePlayer() == Color)
     {
       if (Game->IsPlayerChecked() && Game->IsPlayerMated())
         Text = "Checkmate";
@@ -243,8 +245,6 @@ void PlayerPanel::DrawPlayerInformation(HDC DC, int X, int Y, int Width, int Hei
       else if (Game->IsPlayerChecked())
         Text = "Check";
     }
-    else if (IsReady)
-      Text = "Ready";
     if (Text.length() > 0)
     {
       SIZE S;

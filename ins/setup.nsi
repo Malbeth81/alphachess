@@ -4,7 +4,7 @@
   !define ProgramTitle "AlphaChess 4"
 
 # Configuration
-  Name "${ProgramTitle}.0.1"
+  Name "${ProgramTitle}.0.3"
   OutFile "..\AlphaChessSetup.exe"
   InstallDir "$PROGRAMFILES\${ProgramTitle}"
   InstallDirRegKey HKLM "Software\${ProgramTitle}" "Install Dir"
