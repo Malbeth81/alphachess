@@ -1,7 +1,7 @@
 /*
 * HistoryPanel.h
 *
-* Copyright (C) 2007-2010 Marc-André Lamothe.
+* Copyright (C) 2007-2011 Marc-André Lamothe.
 *
 * This program is free software; you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -21,11 +21,11 @@
 #define HISTORYPANEL_H_
 
 #include "../chess/chessgame.h"
+#include "../system.h"
 #include "../theme.h"
 #include <custombutton.h>
 #include <cstrutils.h>
 #include <winutils.h>
-#include <windows.h>
 
 #define WM_HISTORYBUTTONCLICKED WM_USER+502
 

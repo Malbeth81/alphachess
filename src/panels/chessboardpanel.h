@@ -1,7 +1,7 @@
 /*
 * ChessBoard.h - A Windows control to display a chess board.
 *
-* Copyright (C) 2007-2010 Marc-André Lamothe.
+* Copyright (C) 2007-2011 Marc-André Lamothe.
 *
 * This program is free software; you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -22,10 +22,10 @@
 
 #include "../chess/chessgame.h"
 #include "../resource.h"
+#include "../system.h"
 #include "../theme.h"
 #include <math.h>
 #include <winutils.h>
-#include <windows.h>
 
 #define MinBorderSize 10
 #define MinSquareSize 20

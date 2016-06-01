@@ -1,7 +1,7 @@
 /*
 * ChessGame.cpp
 *
-* Copyright (C) 2010 Marc-André Lamothe.
+* Copyright (C) 2011 Marc-André Lamothe.
 *
 * This program is free software; you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -36,6 +36,7 @@ ChessGame::ChessGame()
   DisplayBoard = new ChessBoard();
   GameBoard = new ChessBoard();
   Moves = new LinkedList<ChessMove>();
+  Evaluator = new ChessEvaluator();
 
   WhitePlayer.MoveTime = 0;
   WhitePlayer.TotalTime = 0;
@@ -58,6 +59,13 @@ ChessGame::~ChessGame()
   delete DisplayBoard;
   delete GameBoard;
   delete Moves;
+  delete Evaluator;
+}
+
+void ChessGame::AddObserver(Observer* Object)
+{
+  Observable::AddObserver(Object);
+  Evaluator->AddObserver(Object);
 }
 
 bool ChessGame::CanBePromoted(const Position Pos)
@@ -135,14 +143,19 @@ void ChessGame::EndTurn()
   NotifyObservers(TurnEnded);
 }
 
+void ChessGame::EvaluateMoves()
+{
+  Evaluator->Evaluate(GameBoard, ActivePlayer);
+}
+
 ChessPieceColor ChessGame::GetActivePlayer()
 {
   return ActivePlayer;
 }
 
-int ChessGame::GetBoardValue()
+int ChessGame::GetBoardValue(ChessPieceColor Player)
 {
-  return GameBoard->Value();
+  return GameBoard->Evaluate(Player);
 }
 
 int ChessGame::GetCaptureCount()
@@ -150,14 +163,9 @@ int ChessGame::GetCaptureCount()
   return CaptureCount;
 }
 
-const ChessMove* ChessGame::GetDisplayedMove()
+int ChessGame::GetDisplayedMove()
 {
-  return Moves->Get(CurrentMove);
-}
-
-ChessEvaluator* ChessGame::GetEvaluator()
-{
-  return new ChessEvaluator(GameBoard, ActivePlayer);
+  return CurrentMove;
 }
 
 ChessGameMode ChessGame::GetMode()
@@ -211,11 +219,9 @@ void ChessGame::GotoFirstMove()
         ChessPiece* Piece = DisplayBoard->GetPiece(Move->To);
         if (Piece != NULL)
         {
-          DisplayBoard->MoveBackPiece(Move->From,Move->To,Move->CapturedPiece,Move->EnPassant);
-          if (Move->CapturedPiece != NULL)
-            CaptureCount--;
-          if (Move->PromotedTo = Blank)
+          if (Move->PromotedTo != Blank)
             Piece->Type = Pawn;
+          DisplayBoard->MoveBackPiece(Move->From,Move->To,Move->CapturedPiece,Move->EnPassant);
           CurrentMove--;
         }
       }
@@ -231,12 +237,18 @@ void ChessGame::GotoLastMove()
     while (CurrentMove < (int)Moves->Size()-1)
     {
       /* Undo the previous move */
-      CurrentMove++;
-      ChessMove* Move = Moves->Get(CurrentMove);
+      ChessMove* Move = Moves->Get(CurrentMove+1);
       if (Move != NULL)
       {
-        bool EnPassant = false;
-        DisplayBoard->MovePiece(Move->From, Move->To, EnPassant);
+        ChessPiece* Piece = DisplayBoard->GetPiece(Move->From);
+        if (Piece != NULL)
+        {
+          if (Move->PromotedTo != Blank)
+            Piece->Type = Move->PromotedTo;
+          bool EnPassant = false;
+          DisplayBoard->MovePiece(Move->From, Move->To, EnPassant);
+          CurrentMove++;
+        }
       }
     }
     NotifyObservers(BoardUpdated);
@@ -248,13 +260,19 @@ void ChessGame::GotoNextMove()
   if (Moves->Size() > 0 && CurrentMove < (int)Moves->Size()-1)
   {
     /* Undo the previous move */
-    CurrentMove++;
-    ChessMove* Move = Moves->Get(CurrentMove);
+    ChessMove* Move = Moves->Get(CurrentMove+1);
     if (Move != NULL)
     {
-      bool EnPassant = false;
-      DisplayBoard->MovePiece(Move->From, Move->To, EnPassant);
-      NotifyObservers(BoardUpdated);
+      ChessPiece* Piece = DisplayBoard->GetPiece(Move->From);
+      if (Piece != NULL)
+      {
+        if (Move->PromotedTo != Blank)
+          Piece->Type = Move->PromotedTo;
+        bool EnPassant = false;
+        DisplayBoard->MovePiece(Move->From, Move->To, EnPassant);
+        CurrentMove++;
+        NotifyObservers(BoardUpdated);
+      }
     }
   }
 }
@@ -270,11 +288,9 @@ void ChessGame::GotoPreviousMove()
       ChessPiece* Piece = DisplayBoard->GetPiece(Move->To);
       if (Piece != NULL)
       {
-        DisplayBoard->MoveBackPiece(Move->From,Move->To,Move->CapturedPiece,Move->EnPassant);
-        if (Move->CapturedPiece != NULL)
-          CaptureCount--;
-        if (Move->PromotedTo = Blank)
+        if (Move->PromotedTo != Blank)
           Piece->Type = Pawn;
+        DisplayBoard->MoveBackPiece(Move->From,Move->To,Move->CapturedPiece,Move->EnPassant);
         CurrentMove--;
         NotifyObservers(BoardUpdated);
       }
@@ -304,15 +320,15 @@ bool ChessGame::IsPlayerMated()
 
 bool ChessGame::LoadFromFile(const string FileName)
 {
-  // Open the file
+  /* Open the file */
   ifstream File(FileName.c_str(), ios::in);
   if (File.is_open())
   {
     BeginUpdate();
-    // Reset the game
+    /* Reset the game */
     Reset();
     State = Started;
-    // Load the file content
+    /* Load the file content */
     string Buffer;
     bool Content = false;
     while (!File.eof() && !File.fail())
@@ -320,15 +336,15 @@ bool ChessGame::LoadFromFile(const string FileName)
       getline(File, Buffer);
       if (!File.fail())
       {
-        // Skip byte-order mark
+        /* Skip byte-order mark */
         char Bom[] = {0xEF, 0xBB, 0xBF};
         if (memcmp(Buffer.c_str(), Bom, 3) == 0)
           Buffer.erase(0,3);
         if (Buffer[0] == '[')
         {
-          if (Content == true)  // If a header follows content then it is another game so we ignore it
+          if (Content == true) /* If a header follows content then it is another game so we ignore it */
             break;
-          // Extract header information
+          /* Extract header information */
           if (Buffer.compare(0,7,"[Black ") == 0)
             BlackPlayer.Name = Buffer.substr(8,Buffer.length()-10);
           else if (Buffer.compare(0,7,"[White ") ==0)
@@ -347,7 +363,7 @@ bool ChessGame::LoadFromFile(const string FileName)
         else
         {
           Content = true;
-          // Extract moves
+          /* Extract moves */
           unsigned int Start = 0;
           unsigned int Round = 0;
           while (Start != string::npos)
@@ -356,13 +372,13 @@ bool ChessGame::LoadFromFile(const string FileName)
             if (Start != string::npos)
             {
               unsigned int End = string::npos;
-              // Skip the comments
+              /* Skip the comments */
               if (Buffer[Start] == '{')
               {
                 End = Buffer.find_first_of("}", Start);
                 if (Moves->Size()%2 != 0)
                 {
-                  // Skip a repeating round number
+                  /* Skip a repeating round number */
                   unsigned int Pos = Buffer.find_first_of("...", End);
                   if (Pos != string::npos)
                     End = Pos+3;
@@ -370,13 +386,13 @@ bool ChessGame::LoadFromFile(const string FileName)
               }
               else if (Buffer[Start] == ';')
                 break;
-              // Skip the round number
+              /* Skip the round number */
               else if (floor(Moves->Size()/2) == Round)
               {
                 End = Buffer.find_first_of(".", Start);
                 Round ++;
               }
-              // Extract the move
+              /* Extract the move */
               else
               {
                 End = Buffer.find_first_of(" {;", Start);
@@ -421,7 +437,7 @@ bool ChessGame::LoadFromImage(const ChessGameImage* Image)
     Mode = Image->Mode;
     State = Image->State;
     ActivePlayer = Image->ActivePlayer;
-    CaptureCount = 0; // TODO Count number of captures
+    CaptureCount = 0;
     CurrentMove = Moves->Size()-1;
     TimePerMove = Image->TimePerMove;
     WhitePlayer.MoveTime = Image->WhitePlayerMoveTime;
@@ -437,6 +453,8 @@ bool ChessGame::LoadFromImage(const ChessGameImage* Image)
       ChessPiece* Piece = new ChessPiece((ChessPieceType)LOBITS(LoByte), (ChessPieceColor)HIBITS(LoByte), LOWORD(Image->Pieces[i]));
       if (HiByte != 255)
         GameBoard->AddPiece(Position(HIBITS(HiByte), LOBITS(HiByte)), Piece);
+      else
+        CaptureCount++;
     }
     DisplayBoard->Copy(GameBoard);
     NotifyObservers(PlayerUpdated);
@@ -531,6 +549,7 @@ bool ChessGame::PromotePawnTo(const ChessPieceType Type)
       {
         /* Change the piece type */
         Piece->Type = Type;
+        DisplayBoard->Copy(GameBoard);
         /* Update the move */
         Move->PromotedTo = Type;
         if (GameBoard->IsKingCheck(Piece->Color))

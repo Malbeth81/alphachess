@@ -1,7 +1,7 @@
 /*
 * Main.cpp
 *
-* Copyright (C) 2007-2010 Marc-André Lamothe.
+* Copyright (C) 2007-2011 Marc-André Lamothe.
 *
 * This program is free software; you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -18,8 +18,6 @@
 * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 */
 #include "alphachess.h"
-
-char DefaultFontName[] = "MS Shell Dlg 2";
 
 // WinAPI functions ------------------------------------------------------------
 

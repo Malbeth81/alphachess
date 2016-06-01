@@ -1,7 +1,7 @@
-w/*
+/*
 * PromotionDialog.cpp - A dialog that allows to choose between 4 piece type.
 *
-* Copyright (C) 2007-2010 Marc-André Lamothe.
+* Copyright (C) 2007-2011 Marc-André Lamothe.
 *
 * This program is free software; you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -20,7 +20,7 @@ w/*
 #include "promotiondialog.h"
 
 static ChessSet* CurSet;
-static int SelectedPiece;
+static ChessPieceType SelectedType;
 
 // PRIVATE FUNCTIONS -----------------------------------------------------------
 
@@ -55,25 +55,25 @@ static INT_PTR __stdcall PromotionDialogProc(HWND hDlg, UINT uMsg, WPARAM wParam
       {
         case IDC_KNIGHT:
         {
-          SelectedPiece = 1;
+          SelectedType = Knight;
           SendMessage(hDlg, WM_CLOSE, 1, 0);
           break;
         }
         case IDC_BISHOP:
         {
-          SelectedPiece = 2;
+          SelectedType = Bishop;
           SendMessage(hDlg, WM_CLOSE, 1, 0);
           break;
         }
         case IDC_ROOK:
         {
-          SelectedPiece = 3;
+          SelectedType = Rook;
           SendMessage(hDlg, WM_CLOSE, 1, 0);
           break;
         }
         case IDC_QUEEN:
         {
-          SelectedPiece = 4;
+          SelectedType = Queen;
           SendMessage(hDlg, WM_CLOSE, 1, 0);
           break;
         }
@@ -92,7 +92,7 @@ static INT_PTR __stdcall PromotionDialogProc(HWND hDlg, UINT uMsg, WPARAM wParam
       DrawCustomButton(GetDlgItem(hDlg, (UINT)wParam), (LPDRAWITEMSTRUCT)lParam);
       /* Draw the chess piece */
       DrawChessPiece(DrawStruct->hDC,DrawStruct->rcItem.left+(DrawStruct->rcItem.right-DrawStruct->rcItem.left)/2,DrawStruct->rcItem.top+(DrawStruct->rcItem.bottom-DrawStruct->rcItem.top)/2,(wParam == IDC_QUEEN ? 1 : (wParam == IDC_ROOK ? 2 : (wParam == IDC_BISHOP ? 3 : 4))));
-      return TRUE
+      return TRUE;
     }
     case WM_INITDIALOG:
     {
@@ -110,10 +110,10 @@ static INT_PTR __stdcall PromotionDialogProc(HWND hDlg, UINT uMsg, WPARAM wParam
 
 // Public functions ------------------------------------------------------------
 
-int ShowPromotionDialog(HINSTANCE Instance, HWND hParent, ChessSet* Set)
+ChessPieceType ShowPromotionDialog(HINSTANCE Instance, HWND hParent, ChessSet* Set)
 {
   CurSet = Set;
-  SelectedPiece = 1;
+  SelectedType = Queen;
   DialogBox(Instance, MAKEINTRESOURCE(IDD_PROMOTION), hParent, (DLGPROC)PromotionDialogProc);
-  return SelectedPiece;
+  return SelectedType;
 }

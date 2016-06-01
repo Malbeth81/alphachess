@@ -1,7 +1,7 @@
 /*
 * Resource.rc - A collection of resources (Menu, Icons, Dialogs).
 *
-* Copyright (C) 2007-2008 Marc-André Lamothe.
+* Copyright (C) 2007-2011 Marc-André Lamothe.
 *
 * This program is free software; you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -18,14 +18,13 @@
 * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 */
 #include "../src/resource.h"
-#include <windows.h>
+#include "../src/system.h"
 
-1                   24              "res/alphachess4.manifest"
+1                  24               "res/alphachess4.manifest"
 ID_MAINICON        ICON             "res/alphachess4.ico"
 ID_LOGO            BITMAP           "res/alphachess4.bmp"
 ID_CURSORGRAB      CURSOR           "res/grab.cur"
 ID_CURSORHAND      CURSOR           "res/hand.cur"
-ID_ANIMATION       ANIICON          "res/animation.ani"
 
 STRINGTABLE
 BEGIN
@@ -126,9 +125,9 @@ FONT 8,"MS Shell Dlg 2",400,0,1
 BEGIN
     GROUPBOX        "Application:",IDC_STATIC,7,7,285,88
     AUTOCHECKBOX    "Look for a new version of AlphaChess on startup.",IDC_AUTOUPDATE,12,20,275,10
-    AUTOCHECKBOX    "Automatically switch the view to the active player's perspective in a local game.",IDC_AUTOINVERTVIEW,12,35,275,10
-    AUTOCHECKBOX    "Keep the AlphaChess window on top of other windows.",IDC_ALWAYSONTOP,12,50,275,10
-    AUTOCHECKBOX    "Keep the AlphaChess window inside the desktop.",IDC_ALWAYSVISIBLE,12,65,275,10
+    AUTOCHECKBOX    "Automatically switch the view to the current player's perspective in a local game.",IDC_AUTOINVERTVIEW,12,35,275,10
+    AUTOCHECKBOX    "Keep the window on top of other windows.",IDC_ALWAYSONTOP,12,50,275,10
+    AUTOCHECKBOX    "Keep the window inside the desktop area.",IDC_ALWAYSVISIBLE,12,65,275,10
     AUTOCHECKBOX    "Always promote pawns to queens.",IDC_PROMOTETOQUEEN,12,80,275,10
     
     GROUPBOX        "Chess board:",IDC_STATIC,7,102,285,95
@@ -137,12 +136,12 @@ BEGIN
     LTEXT           "Use the following color theme:",IDC_THEMELBL,12,134,130,8
     COMBOBOX        IDC_THEME,143,132,80,120,WS_TABSTOP | CBS_DROPDOWNLIST | WS_VSCROLL | CBS_HASSTRINGS
     PUSHBUTTON      "Manage",IDC_MANAGETHEMES,227,132,60,13
-    AUTOCHECKBOX    "Show the squares coordinates on the chess board.",IDC_SHOWCOORDINATES,12,152,275,10
-    AUTOCHECKBOX    "Show the position of the last moved piece on the chess board.",IDC_SHOWLASTMOVE,12,167,275,10
-    AUTOCHECKBOX    "Show the possible moves on the chess board.",IDC_SHOWINVALIDMOVES,12,182,275,10
+    AUTOCHECKBOX    "Show squares' coordinates on the chess board.",IDC_SHOWCOORDINATES,12,152,275,10
+    AUTOCHECKBOX    "Highlight the last moved piece on the chess board.",IDC_SHOWLASTMOVE,12,167,275,10
+    AUTOCHECKBOX    "Show the valid/invalid move indicator on the chess board.",IDC_SHOWINVALIDMOVES,12,182,275,10
     
     GROUPBOX        "History:",IDC_STATIC,7,205,285,28
-    AUTOCHECKBOX    "Show icons for the moved piece in the history panel.",IDC_SHOWMOVELISTICONS,12,218,275,10
+    AUTOCHECKBOX    "Use icons to identify the chess pieces in the history panel.",IDC_SHOWMOVELISTICONS,12,218,275,10
     
     DEFPUSHBUTTON   "O&K",IDOK,133,238,50,15
     PUSHBUTTON      "&Cancel",IDCANCEL,188,238,50,15
@@ -221,19 +220,19 @@ BEGIN
     PUSHBUTTON      "&Cancel",IDCANCEL,160,105,50,14
 END
 
-IDD_NETWORKGAME DIALOGEX 0,0,282,187
+IDD_NETWORKGAME DIALOGEX 0,0,314,187
 STYLE DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_SYSMENU | WS_CAPTION
 CAPTION "New online game"
 FONT 8,"MS Shell Dlg 2",400,0,1
 BEGIN
-    RTEXT           "Your name:",IDC_PLAYERNAMELBL,7,9,67,8
-    EDITTEXT        IDC_PLAYERNAME,80,7,195,13,WS_TABSTOP
-    LTEXT           "Game rooms:",IDC_GAMEROOMS,7,25,120,8
-    CONTROL         "",IDC_GAMEROOMLIST,WC_LISTVIEW,WS_TABSTOP | WS_BORDER | LVS_SINGLESEL | LVS_REPORT | LVS_NOSORTHEADER | LVS_SHOWSELALWAYS,7,37,268,125
-    PUSHBUTTON      "&New game room",IDC_CREATEGAMEROOM,7,166,80,14
-    PUSHBUTTON      "&Refresh list",IDC_REFRESHGAMEROOMS,91,166,65,14
-    DEFPUSHBUTTON   "O&K",IDOK,171,166,50,14
-    PUSHBUTTON      "&Cancel",IDCANCEL,225,166,50,14
+    RTEXT           "Your name:",IDC_PLAYERNAMELBL,7,9,50,8
+    EDITTEXT        IDC_PLAYERNAME,62,7,245,13,WS_TABSTOP
+    LTEXT           "Choose one of the available game rooms:",IDC_GAMEROOMS,7,25,300,8
+    CONTROL         "",IDC_GAMEROOMLIST,WC_LISTVIEW,WS_TABSTOP | WS_BORDER | LVS_SINGLESEL | LVS_REPORT | LVS_NOSORTHEADER | LVS_SHOWSELALWAYS,7,37,300,125
+    PUSHBUTTON      "&Create a new room",IDC_CREATEGAMEROOM,7,166,100,14
+    PUSHBUTTON      "&Refresh",IDC_REFRESHGAMEROOMS,111,166,50,14
+    DEFPUSHBUTTON   "O&K",IDOK,203,166,50,14
+    PUSHBUTTON      "&Cancel",IDCANCEL,257,166,50,14
 END
 
 IDD_SAVEDGAMES DIALOGEX 0,0,450,170

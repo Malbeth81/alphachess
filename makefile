@@ -1,14 +1,14 @@
 # Global parameters
 GCC = g++.exe
-FLAGS = -Wall -fmessage-length=0 -I..\includes -g -DDEBUG
-#FLAGS = -Wall -fmessage-length=0 -I..\includes -O2
+#FLAGS = -Wall -fmessage-length=0 -I..\includes -g -DDEBUG
+FLAGS = -Wall -fmessage-length=0 -I..\includes -O2
 TARGET = bin\alphachess.exe
 
 all: $(TARGET)
 
 # Create target application
-$(TARGET): res\resources.res obj\main.o obj\alphachess.o obj\gameclient.o obj\chessevaluator.o obj\chessboard.o obj\chessgame.o obj\capturepanel.o obj\chatpanel.o obj\chessboardpanel.o obj\historypanel.o obj\roompanel.o obj\playerpanel.o obj\aboutdialog.o obj\savedgamesdialog.o obj\inputdialog.o obj\localgamedialog.o obj\networkgamedialog.o obj\preferencesdialog.o obj\themesdialog.o
-	$(GCC) -mwindows -o $@ $^ -l ws2_32
+$(TARGET): res\resources.res obj\main.o obj\alphachess.o obj\gameclient.o obj\chessevaluator.o obj\chessboard.o obj\chessgame.o obj\capturepanel.o obj\chatpanel.o obj\chessboardpanel.o obj\historypanel.o obj\roompanel.o obj\playerpanel.o obj\aboutdialog.o obj\savedgamesdialog.o obj\inputdialog.o obj\localgamedialog.o obj\networkgamedialog.o obj\preferencesdialog.o obj\promotiondialog.o obj\themesdialog.o
+	$(GCC) -static-libgcc -static-libstdc++ -mwindows -o $@ $^ -l ws2_32
 
 #Resources
 res\resources.res: res\resources.rc

@@ -1,7 +1,7 @@
 /*
 * Ressource.h - A collection of resources like icons and dialog definition.
 *
-* Copyright (C) 2007-2008 Marc-André Lamothe.
+* Copyright (C) 2007-2011 Marc-André Lamothe.
 *
 * This program is free software; you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by

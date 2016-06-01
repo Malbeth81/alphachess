@@ -1,7 +1,7 @@
 /*
 * SavedGamesDialog.h
 *
-* Copyright (C) 2007-2010 Marc-André Lamothe.
+* Copyright (C) 2007-2011 Marc-André Lamothe.
 *
 * This program is free software; you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -20,16 +20,15 @@
 #ifndef SAVEDGAMESDIALOG_H_
 #define SAVEDGAMESDIALOG_H_
 
-#define _WIN32_IE 0x0400 // IE 4.0 controls
 #include "../resource.h"
+#include "../system.h"
+#include <commctrl.h>
 #include <dialogutils.h>
 #include <fstream>
 #include <linkedlist.h>
 #include <map>
 #include <string>
 #include <winutils.h>
-#include <windows.h>
-#include <commctrl.h>
 
 using namespace std;
 

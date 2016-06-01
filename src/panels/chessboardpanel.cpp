@@ -1,7 +1,7 @@
 /*
 * ChessBoard.cpp - A Windows control to display a chess board.
 *
-* Copyright (C) 2007-2010 Marc-André Lamothe.
+* Copyright (C) 2007-2011 Marc-André Lamothe.
 *
 * This program is free software; you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -20,8 +20,6 @@
 #include "chessboardpanel.h"
 
 const char ClassName[] = "ChessBoardPanel";
-
-extern char DefaultFontName[];
 
 ATOM ChessBoardPanel::ClassAtom = 0;
 
@@ -260,7 +258,7 @@ void ChessBoardPanel::DrawBoardIndexes(HDC DC, int X, int Y, bool Vertical)
     char HorizontalIndexes[] = "ABCDEFGH";
     SetBkMode(DC,TRANSPARENT);
     SetTextColor(DC, Theme->CoordinatesColor);
-    HFONT OldFont = (HFONT)SelectObject(DC,EasyCreateFont(DC,DefaultFontName,PixelsToPoints(DC, BorderSize-4),0));
+    HFONT OldFont = (HFONT)SelectObject(DC,EasyCreateFont(DC,DefaultSystemFont,PixelsToPoints(DC, BorderSize-4),0));
     for (int i=0; i < 8; i++)
     {
       if (Vertical)
@@ -298,7 +296,7 @@ void ChessBoardPanel::DrawBoardSquares(HDC DC, int X, int Y)
   {
     COLORREF Color;
     int HighlightWidth = SquareSize/20;
-    const ChessMove* LastMove = Game->GetDisplayedMove();
+    const ChessMove* LastMove = Game->GetMoves()->Get(Game->GetDisplayedMove());
     /* Draw the board squares */
     Position Pos;
     for (Pos.x=0; Pos.x < 8; Pos.x++)
@@ -415,7 +413,7 @@ void ChessBoardPanel::DrawPaused(HDC DC)
     SIZE Size;
     SetBkMode(DC,TRANSPARENT);
     /* Draw the text outline */
-    HFONT OldFont = (HFONT)SelectObject(DC,EasyCreateFont(DC,DefaultFontName,PixelsToPoints(DC, SquareSize-4),0));
+    HFONT OldFont = (HFONT)SelectObject(DC,EasyCreateFont(DC,DefaultSystemFont,PixelsToPoints(DC, SquareSize-4),0));
     HPEN OldPen = (HPEN)SelectObject(DC,CreatePen(PS_SOLID,int(SquareSize*.1),Theme->BorderColor));
     GetTextExtentPoint32(DC,Str,strlen(Str),&Size);
     BeginPath(DC);
@@ -424,7 +422,7 @@ void ChessBoardPanel::DrawPaused(HDC DC)
     StrokePath(DC);
     /* Draw the text */
     SetTextColor(DC, Theme->CoordinatesColor);
-    DeleteObject(SelectObject(DC,EasyCreateFont(DC,DefaultFontName,PixelsToPoints(DC, SquareSize-4),0)));
+    DeleteObject(SelectObject(DC,EasyCreateFont(DC,DefaultSystemFont,PixelsToPoints(DC, SquareSize-4),0)));
     GetTextExtentPoint32(DC,Str,strlen(Str),&Size);
     TextOut(DC,(min(Width,Height)-Size.cx)/2,(min(Width,Height)-Size.cy)/2,Str,strlen(Str));
     /* Clean up */
@@ -492,7 +490,7 @@ void ChessBoardPanel::DrawPossibleMovesValues(HDC DC, int X, int Y)
     /* Set the style */
     SetBkMode(DC,TRANSPARENT);
     SetTextColor(DC, Theme->CoordinatesColor);
-    HFONT OldFont = (HFONT)SelectObject(DC,EasyCreateFont(DC,DefaultFontName,PixelsToPoints(DC, BorderSize-4),0));
+    HFONT OldFont = (HFONT)SelectObject(DC,EasyCreateFont(DC,DefaultSystemFont,PixelsToPoints(DC, BorderSize-4),0));
     HPEN OldPen = (HPEN)SelectObject(DC,CreatePen(PS_SOLID,int(SquareSize*.1),Theme->BorderColor));
     if (SelectedSquare.x >= 0 && SelectedSquare.y >= 0)
     {
@@ -502,7 +500,7 @@ void ChessBoardPanel::DrawPossibleMovesValues(HDC DC, int X, int Y)
       {
         if (Move->From.x == SelectedSquare.x && Move->From.y == SelectedSquare.y)
         {
-          char* Str = inttostr(Move->Value-(Game->GetActivePlayer() == White ? Game->GetBoardValue() : -Game->GetBoardValue()));
+          char* Str = inttostr(Move->Value-Game->GetBoardValue(Game->GetActivePlayer()));
           BeginPath(DC);
           TextOut(DC, X+2+SquareSize*(InvertView ? 7-Move->To.x : Move->To.x), Y+SquareSize*(InvertView ? Move->To.y : 7-Move->To.y),Str,strlen(Str));
           EndPath(DC);
@@ -522,7 +520,7 @@ void ChessBoardPanel::DrawPossibleMovesValues(HDC DC, int X, int Y)
           PossibleChessMove* BestMove = FindBestPossibleMove(PossibleMoves, i, j);
           if (BestMove != NULL)
           {
-            char* Str = inttostr(BestMove->Value-(Game->GetActivePlayer() == White ? Game->GetBoardValue() : -Game->GetBoardValue()));
+            char* Str = inttostr(BestMove->Value-Game->GetBoardValue(Game->GetActivePlayer()));
             BeginPath(DC);
             TextOut(DC, X+2+SquareSize*(InvertView ? 7-i : i), Y+SquareSize*(InvertView ? j : 7-j),Str,strlen(Str));
             EndPath(DC);
@@ -565,7 +563,7 @@ void ChessBoardPanel::DrawSelectedChessPiece(HDC DC, int X, int Y)
 
 void ChessBoardPanel::MouseDown(int x, int y)
 {
-  if (Game != NULL && !Locked)
+  if (Game != NULL && Game->GetState() == Started && !Locked)
   {
     if (HighlightedSquare.x >= 0 && HighlightedSquare.x < 8 && HighlightedSquare.y >= 0 && HighlightedSquare.y < 8)
       if (SelectedSquare.x == -1 && SelectedSquare.y == -1 && Game->GetPiece(HighlightedSquare) != NULL && Game->GetPiece(HighlightedSquare)->Color == Game->GetActivePlayer())
@@ -584,12 +582,12 @@ void ChessBoardPanel::MouseUp(int x, int y)
 {
   if (Game != NULL && !Locked)
   {
-    bool PieceMoved = true; // Prevent from updating the board if the piece was not moved
+    bool PieceMoved = true; /* Prevent from updating the board if the piece was not moved */
     if (HighlightedSquare.x >= 0 && HighlightedSquare.x < 8 && HighlightedSquare.y >= 0 && HighlightedSquare.y < 8)
       if (SelectedSquare.x >= 0 && SelectedSquare.x < 8 && SelectedSquare.y >= 0 && SelectedSquare.y < 8)
         if (HighlightedSquare.x != SelectedSquare.x || HighlightedSquare.y != SelectedSquare.y)
           /* Move the selected piece to the highlighted square */
-          PieceMoved = SendMessage(GetParent(Handle), WM_CHESSPIECEMOVED, (WPARAM)&SelectedSquare, (LPARAM)&HighlightedSquare);
+          PieceMoved = SendMessage(GetParent(Handle), WM_CHESSPIECEMOVED, (WPARAM)new Position(SelectedSquare), (LPARAM)new Position(HighlightedSquare));
     if (MouseMoved)
     {
       if (PieceMoved)
@@ -603,7 +601,7 @@ void ChessBoardPanel::MouseUp(int x, int y)
       }
     }
     else
-      MouseMoved = true; // Allows to cancel the selection when clicking a piece
+      MouseMoved = true; /* Allows to cancel the selection when clicking a piece */
   }
 }
 
@@ -621,7 +619,7 @@ void ChessBoardPanel::MouseMove(int x, int y)
     HighlightedSquare.x = -1;
     HighlightedSquare.y = -1;
   }
-  MouseMoved = true; // Allows to cancel the selection when dragging a piece
+  MouseMoved = true; /* Allows to cancel the selection when dragging a piece */
   Invalidate();
   if (SelectedSquare.x >= 0 && SelectedSquare.y >= 0)
     SetCursor(SelectionCursor);

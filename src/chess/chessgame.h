@@ -1,7 +1,7 @@
 /*
 * ChessGame.h - Class representing a game of chess.
 *
-* Copyright (C) 2010 Marc-André Lamothe.
+* Copyright (C) 2011 Marc-André Lamothe.
 *
 * This program is free software; you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -20,15 +20,15 @@
 #ifndef CHESSGAME_H_
 #define CHESSGAME_H_
 
+#include "../system.h"
+#include "chessboard.h"
+#include "chessevaluator.h"
 #include <cstrutils.h>
 #include <fstream>
 #include <math.h>
 #include <observer.h>
 #include <string>
-#include <winutils.h> /* for FormatDateTime */
-#include <windows.h> /* for SystemTime */
-#include "chessboard.h"
-#include "chessevaluator.h"
+#include <winutils.h>
 
 using namespace std;
 
@@ -50,7 +50,7 @@ public:
   bool Check;
   bool Mate;
 
-  ChessMove::ChessMove()
+  ChessMove()
   {
   }
 
@@ -67,7 +67,6 @@ public:
     Move.EnPassant = false;
     Move.Check = false;
     Move.Mate = false;
-    // TODO update other values (like en passant)
     if (Str.compare("O-O-O") == 0)
     {
       Move.Piece = King;
@@ -92,25 +91,34 @@ public:
     }
     else
     {
-      // Extract piece type
+      /* Extract piece type */
       Move.Piece = ChessPiece::GetPieceType(Str.c_str());
       if (Move.Piece != Pawn)
         Str.erase(0,1);
-      // Remove status indicators
+      /* Remove status indicators */
       unsigned int Pos = Str.find_first_of(":x#+");
       while (Pos != string::npos)
       {
+        if (Str[Pos] == ':')
+          Move.EnPassant = true;
+        else if (Str[Pos] == '+')
+          Move.Check = true;
+        else if (Str[Pos] == '#')
+        {
+          Move.Check = true;
+          Move.Mate = true;
+        }
         Str.erase(Pos,1);
         Pos = Str.find_first_of(":x#+");
       }
-      // Extract promotion
+      /* Extract promotion */
       Pos = Str.find_first_of("=");
       if (Pos != string::npos && Str[Pos] == '=' && Str.length() > Pos+1)
       {
         Move.PromotedTo = ChessPiece::GetPieceType(Str.substr(Pos+1).c_str());
         Str.erase(Pos,1);
       }
-      // Extract move
+      /* Extract move */
       if (Str.length() >= 4)
       {
         Move.From = Position::ParseString(Str.c_str());
@@ -198,16 +206,17 @@ public:
   ChessGame();
   ~ChessGame();
 
+  void AddObserver(Observer* Object);
   bool CanBePromoted(const Position Pos);
   void Clear();
   unsigned int CountBackMoves(const Position Pos);
   void DrawGame();
   void EndTurn();
+  void EvaluateMoves();
   ChessPieceColor GetActivePlayer();
-  int GetBoardValue();
+  int GetBoardValue(ChessPieceColor Player);
   int GetCaptureCount();
-  const ChessMove* GetDisplayedMove();
-  ChessEvaluator* GetEvaluator();
+  int GetDisplayedMove();
   const LinkedList<ChessMove>* GetMoves();
   ChessGameMode GetMode();
   const ChessPiece* GetPiece(const Position Pos);
@@ -245,6 +254,7 @@ private :
   ChessBoard* DisplayBoard;
   ChessBoard* GameBoard;
   LinkedList<ChessMove>* Moves;
+  ChessEvaluator* Evaluator;
 
   ChessPlayer WhitePlayer;
   ChessPlayer BlackPlayer;

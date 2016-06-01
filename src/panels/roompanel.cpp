@@ -1,7 +1,7 @@
 /*
 * RoomPanel.cpp
 *
-* Copyright (C) 2007-2010 Marc-André Lamothe.
+* Copyright (C) 2007-2011 Marc-André Lamothe.
 *
 * This program is free software; you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -21,8 +21,6 @@
 #include "../resource.h"
 
 const char ClassName[] = "RoomPanel";
-
-extern char DefaultFontName[];
 
 ATOM RoomPanel::ClassAtom = 0;
 
@@ -87,7 +85,7 @@ RoomPanel::RoomPanel(HINSTANCE hInstance, HWND hParent, RECT* R)
       delete[] CollumnName;
 
       /* Set controls font */
-      HFONT Font = EasyCreateFont(NULL,DefaultFontName,8,0);
+      HFONT Font = EasyCreateFont(NULL,DefaultSystemFont,8,0);
       PostMessage(PlayerList,WM_SETFONT,(WPARAM)Font,FALSE);
       PostMessage(LeaveRoomButton,WM_SETFONT,(WPARAM)Font,FALSE);
       PostMessage(KickPlayerButton,WM_SETFONT,(WPARAM)Font,FALSE);

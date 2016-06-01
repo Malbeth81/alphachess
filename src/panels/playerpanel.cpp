@@ -1,7 +1,7 @@
 /*
 * PlayerPanel.cpp
 *
-* Copyright (C) 2007-2010 Marc-André Lamothe.
+* Copyright (C) 2007-2011 Marc-André Lamothe.
 *
 * This program is free software; you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -20,8 +20,6 @@
 #include "playerpanel.h"
 
 const char ClassName[] = "PlayersInfoPanel";
-
-extern char DefaultFontName[];
 
 ATOM PlayerPanel::ClassAtom = 0;
 WNDPROC PlayerPanel::OldPlayerButtonProc = 0;
@@ -76,7 +74,7 @@ PlayerPanel::PlayerPanel(HINSTANCE hInstance, HWND hParent, RECT* R, ChessPieceC
       UpdateSize(Width, Height);
 
       /* Change the window's appearance */
-      HFONT Font = EasyCreateFont(NULL,DefaultFontName,10,fsBold);
+      HFONT Font = EasyCreateFont(NULL,DefaultSystemFont,10,fsBold);
       PostMessage(PlayerButton,WM_SETFONT,(WPARAM)Font,FALSE);
 
       /* Create the popup menu */
@@ -190,7 +188,7 @@ void PlayerPanel::DrawPlayerInformation(HDC DC, int X, int Y, int Width, int Hei
     {
       /* Draw the player's time */
       SIZE S;
-      HFONT OldFont = (HFONT)SelectObject(DC,EasyCreateFont(DC,DefaultFontName,8,0));
+      HFONT OldFont = (HFONT)SelectObject(DC,EasyCreateFont(DC,DefaultSystemFont,8,0));
       char* Str = timeformat(Player->MoveTime/1000);
       GetTextExtentPoint32(DC,Str,strlen(Str),&S);
       TextOut(DC,X+4,Height-S.cy-2,Str,strlen(Str));
@@ -213,7 +211,7 @@ void PlayerPanel::DrawPlayerInformation(HDC DC, int X, int Y, int Width, int Hei
     if (Text.length() > 0)
     {
       SIZE S;
-      HFONT OldFont = (HFONT)SelectObject(DC,EasyCreateFont(DC,DefaultFontName,8,fsBold));
+      HFONT OldFont = (HFONT)SelectObject(DC,EasyCreateFont(DC,DefaultSystemFont,8,fsBold));
       GetTextExtentPoint32(DC,Text.c_str(),Text.length(),&S);
       TextOut(DC,X+Width-S.cx-4,Height-S.cy-2,Text.c_str(),Text.length());
       DeleteObject(SelectObject(DC,OldFont));
@@ -337,7 +335,7 @@ LRESULT __stdcall PlayerPanel::PanelWindowProc(HWND hWnd, UINT Msg, WPARAM wPara
         Pos.y = Pos.y-R.top;
         if (ChildWindowFromPoint(hWnd,Pos) != Panel->PlayerButton)
         {
-          // Set button status to none
+          /* Set button status to none */
           SetWindowLong(Panel->PlayerButton, GWL_USERDATA, 0);
           InvalidateRect(Panel->PlayerButton, NULL, TRUE);
         }
@@ -443,7 +441,7 @@ LRESULT __stdcall PlayerPanel::PlayerButtonProc(HWND hWnd, UINT Msg, WPARAM wPar
             const ChessPlayer* Player = Panel->Game->GetPlayer(Panel->Color);
             SetBkMode(DC,TRANSPARENT);
             SetTextColor(DC, GetSysColor(Panel->Game->GetActivePlayer() == Panel->Color && Panel->Game->GetState() != Undefined && GetWindowLong(hWnd, GWL_USERDATA) == 0 ? COLOR_HIGHLIGHTTEXT : COLOR_BTNTEXT));
-            HFONT OldFont = (HFONT)SelectObject(DC,EasyCreateFont(DC,DefaultFontName,9,0));
+            HFONT OldFont = (HFONT)SelectObject(DC,EasyCreateFont(DC,DefaultSystemFont,9,0));
             const char* Text = Player->Name.c_str();
             if (strlen(Text) == 0)
             {

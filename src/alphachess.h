@@ -1,7 +1,7 @@
 /*
 * AlphaChess.h
 *
-* Copyright (C) 2007-2010 Marc-André Lamothe.
+* Copyright (C) 2007-2011 Marc-André Lamothe.
 *
 * This program is free software; you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -20,13 +20,10 @@
 #ifndef ALPHACHESS_H_
 #define ALPHACHESS_H_
 
-#define _WIN32_WINDOWS 0x0410   // Windows 98 +
-#define _WIN32_IE 0x0400 // IE 3.0 controls
-#define WINVER 0x0500
-
 #include "gameclient.h"
 #include "resource.h"
 #include "theme.h"
+#include "system.h"
 #include "chess/chessgame.h"
 #include "dialogs/aboutdialog.h"
 #include "dialogs/savedgamesdialog.h"
@@ -46,7 +43,6 @@
 #include <strutils.h>
 #include <string>
 #include <winutils.h>
-#include <windows.h>
 
 using namespace std;
 

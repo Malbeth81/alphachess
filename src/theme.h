@@ -20,9 +20,9 @@
 #ifndef THEME_H_
 #define THEME_H_
 
+#include "system.h"
 #include <string>
 #include <winutils.h>
-#include <windows.h>
 
 using namespace std;
 

@@ -1,7 +1,7 @@
 /*
 * SavedGamesDialog.cpp
 *
-* Copyright (C) 2007-2010 Marc-André Lamothe.
+* Copyright (C) 2007-2011 Marc-André Lamothe.
 *
 * This program is free software; you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -50,7 +50,7 @@ static void AddGameToList(HWND List, map<string, string> Headers)
 static map<string, string> ExtractHeadersFromFile(const string FileName)
 {
   map<string, string> Result;
-  // Open the file
+  /* Open the file */
   ifstream File(FileName.c_str(), ios::in);
   if (File.is_open())
   {
@@ -60,13 +60,13 @@ static map<string, string> ExtractHeadersFromFile(const string FileName)
       getline(File, Buffer);
       if (!File.fail())
       {
-        // Skip byte-order mark
+        /* Skip byte-order mark */
         char Bom[] = {0xEF, 0xBB, 0xBF};
         if (memcmp(Buffer.c_str(), Bom, 3) == 0)
           Buffer.erase(0,3);
         if (Buffer[0] == '[')
         {
-          // Extract header information
+          /* Extract header information */
           unsigned int Pos = Buffer.find(" \"");
           if (Pos != string::npos)
             Result[Buffer.substr(1,Pos-1)] = Buffer.substr(Pos+2,Buffer.length()-Pos-4);

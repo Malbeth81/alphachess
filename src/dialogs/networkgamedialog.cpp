@@ -1,7 +1,7 @@
 /*
 * NetworkGameDialog.cpp
 *
-* Copyright (C) 2007-2010 Marc-André Lamothe.
+* Copyright (C) 2007-2011 Marc-André Lamothe.
 *
 * This program is free software; you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -140,9 +140,9 @@ static INT_PTR __stdcall NetworkGameDialogProc(HWND hDlg, UINT uMsg, WPARAM wPar
       LoadString((HINSTANCE)GetWindowLong(hDlg, GWL_HINSTANCE), IDS_GAMEROOMLIST_COL1, CollumnName, 20);
       AddListViewCollumn(Listview, CollumnName, 0, (int)(25*scaleFactor));
       LoadString((HINSTANCE)GetWindowLong(hDlg, GWL_HINSTANCE), IDS_GAMEROOMLIST_COL2, CollumnName, 20);
-      AddListViewCollumn(Listview, CollumnName, 1, (int)(265*scaleFactor));
+      AddListViewCollumn(Listview, CollumnName, 1, (int)(300*scaleFactor));
       LoadString((HINSTANCE)GetWindowLong(hDlg, GWL_HINSTANCE), IDS_GAMEROOMLIST_COL3, CollumnName, 20);
-      AddListViewCollumn(Listview, CollumnName, 2, (int)(60*scaleFactor));
+      AddListViewCollumn(Listview, CollumnName, 2, (int)(75*scaleFactor));
       delete[] CollumnName;
       SendMessage(Listview, LVM_SETEXTENDEDLISTVIEWSTYLE, LVS_EX_FULLROWSELECT, LVS_EX_FULLROWSELECT);
 

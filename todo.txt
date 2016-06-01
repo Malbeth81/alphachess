@@ -3,6 +3,3 @@ Add support for other game mode in network games
 Add Show Hint function that highlights all the possible moves (with gradiant for score) for local or vs computer games only
 Add support for private network games, locked with password 
 Load a game while in an online game room loads the game board and time but keep player names (if game is not started only)
-Auto scroll down move list
-
-Implement hastable of chessboard states and return the value if it exists instead of recalculating

@@ -1,7 +1,7 @@
 /*
 * ChessBoard.cpp
 *
-* Copyright (C) 2007-2010 Marc-André Lamothe.
+* Copyright (C) 2007-2011 Marc-André Lamothe.
 *
 * This program is free software; you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -18,22 +18,63 @@
 * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 */
 #include "chessboard.h"
+#include <algorithm>
+#include <limits.h>
+#include <time.h>
 
-static const int IsolatedPawnsPenalty[8] = {4,6,8,10,10,8,6,4};
+using namespace std;
+
+unsigned int ChessBoard::HashValues[12][8][8][2] = {};
+bool ChessBoard::HashValuesInitialised = false;
+const int ChessBoard::IsolatedPawnsPenalty[8] = {4,6,8,10,10,8,6,4};
 
 // Public function -------------------------------------------------------------
 
 ChessBoard::ChessBoard()
 {
-  for (int i=0; i < 8; i++)
-    for (int j=0; j < 8; j++)
-      Cases[i][j] = NULL;
-  WhiteKingPos.x = -1;
-  WhiteKingPos.y = -1;
+  /* Initialise board */
+  for (int x=0; x < 8; x++)
+    for (int y=0; y < 8; y++)
+      Cases[x][y] = NULL;
+
+  /* Initialise statistics */
+  BlackKingCastled = false;
   BlackKingPos.x = -1;
   BlackKingPos.y = -1;
+  BlackHasQueen = false;
+  BlackBishopCount = 0;
+  BlackPawnCount = 0;
+  BlackPieceCount = 0;
+
   WhiteKingCastled = false;
-  BlackKingCastled = false;
+  WhiteKingPos.x = -1;
+  WhiteKingPos.y = -1;
+  WhiteHasQueen = false;
+  WhiteBishopCount = 0;
+  WhitePawnCount = 0;
+  WhitePieceCount = 0;
+
+  /* Initialise hashing values */
+  if (!HashValuesInitialised)
+  {
+    srand(time(NULL));
+    unsigned int Value1 = 0;
+    unsigned int Value2 = 0;
+    for (short i = 0; i < 12; i ++)
+      for (short x = 0; x < 8; x ++)
+        for (short y = 0; y < 8; y ++)
+        {
+          Value1 += 4095 + rand();
+          HashValues[i][x][y][0] = Value1;
+          Value2 += 4095 + rand();
+          HashValues[i][x][y][1] = Value2;
+        }
+    HashValuesInitialised = true;
+  }
+
+  /* Initialise hash keys */
+  HashKey1 = 0;
+  HashKey2 = 0;
 }
 
 ChessBoard::~ChessBoard()
@@ -50,18 +91,53 @@ bool ChessBoard::AddPiece(const Position Pos, ChessPiece* Piece)
 {
   if (Piece != NULL && IsPositionValid(Pos))
   {
-    /* Save the king's position */
-    if (Piece->Type == King)
-    {
-      if (Piece->Color == White)
-        WhiteKingPos = Pos;
-      else
-        BlackKingPos = Pos;
-    }
     /* Add the piece to the board */
     if (Cases[Pos.x][Pos.y] != NULL)
       delete Cases[Pos.x][Pos.y];
     Cases[Pos.x][Pos.y] = Piece;
+
+    /* Update statistics */
+    if (Piece->Type == King)
+    {
+      if (Piece->Color == Black)
+      {
+        BlackKingCastled = false;
+        BlackKingPos = Pos;
+      }
+      else
+      {
+        WhiteKingCastled = false;
+        WhiteKingPos = Pos;
+      }
+    }
+    else if (Piece->Type == Queen)
+    {
+      if (Piece->Color == Black)
+        BlackHasQueen = true;
+      else
+        WhiteHasQueen = true;
+    }
+    else if (Piece->Type == Bishop)
+    {
+      if (Piece->Color == Black)
+        BlackBishopCount ++;
+      else
+        WhiteBishopCount ++;
+    }
+    else if (Piece->Type == Pawn)
+    {
+      if (Piece->Color == Black)
+        BlackPawnCount ++;
+      else
+        WhitePawnCount ++;
+    }
+    if (Piece->Color == Black)
+      BlackPieceCount ++;
+    else
+      WhitePieceCount ++;
+    /* Update hash keys */
+    HashKey1 ^= HashValues[Piece->Type-Pawn + (Piece->Color == White ? 6 : 0)][Pos.x][Pos.y][0];
+    HashKey2 ^= HashValues[Piece->Type-Pawn + (Piece->Color == White ? 6 : 0)][Pos.x][Pos.y][1];
     return true;
   }
   return false;
@@ -71,6 +147,7 @@ void ChessBoard::Copy(const ChessBoard* Board)
 {
   if (Board != NULL)
   {
+    /* Copy chess board */
     for (int i=0; i < 8; i++)
       for (int j=0; j < 8; j++)
       {
@@ -81,12 +158,24 @@ void ChessBoard::Copy(const ChessBoard* Board)
         else
           Cases[i][j]= NULL;
       }
-    WhiteKingPos.x = Board->WhiteKingPos.x;
-    WhiteKingPos.y = Board->WhiteKingPos.y;
+
+    /* Copy statistics */
+    BlackKingCastled = Board->WhiteKingCastled;
     BlackKingPos.x = Board->BlackKingPos.x;
     BlackKingPos.y = Board->BlackKingPos.y;
+    BlackHasQueen = Board->BlackHasQueen;
+    BlackBishopCount = Board->BlackBishopCount;
+    BlackPawnCount = Board->BlackPawnCount;
+    BlackPieceCount = Board->BlackPieceCount;
+
     WhiteKingCastled = Board->WhiteKingCastled;
-    BlackKingCastled = Board->WhiteKingCastled;
+    WhiteKingPos.x = Board->WhiteKingPos.x;
+    WhiteKingPos.y = Board->WhiteKingPos.y;
+    WhiteHasQueen = Board->WhiteHasQueen;
+    WhiteBishopCount = Board->WhiteBishopCount;
+    WhitePawnCount = Board->WhitePawnCount;
+    WhitePieceCount = Board->WhitePieceCount;
+
     Position* Ptr = Board->MovedPieces.GetFirst();
     while (Ptr != NULL)
     {
@@ -96,6 +185,10 @@ void ChessBoard::Copy(const ChessBoard* Board)
       MovedPieces.Add(Pos);
       Ptr = Board->MovedPieces.GetNext();
     }
+
+    /* Copy hash keys */
+    HashKey1 = Board->HashKey1;
+    HashKey2 = Board->HashKey2;
   }
 }
 
@@ -109,14 +202,186 @@ void ChessBoard::Clear()
         delete Cases[i][j];
         Cases[i][j] = NULL;
       }
-  WhiteKingPos.x = -1;
-  WhiteKingPos.y = -1;
+
+  /* Reset statistics */
+  BlackKingCastled = false;
   BlackKingPos.x = -1;
   BlackKingPos.y = -1;
+  BlackHasQueen = false;
+  BlackBishopCount = 0;
+  BlackPawnCount = 0;
+  BlackPieceCount = 0;
+
   WhiteKingCastled = false;
-  BlackKingCastled = false;
+  WhiteKingPos.x = -1;
+  WhiteKingPos.y = -1;
+  WhiteHasQueen = false;
+  WhiteBishopCount = 0;
+  WhitePawnCount = 0;
+  WhitePieceCount = 0;
+
   while (MovedPieces.Size() > 0)
     delete MovedPieces.Remove();
+
+  /* Reset hash keys */
+  HashKey1 = 0;
+  HashKey2 = 0;
+}
+
+int ChessBoard::Evaluate(const ChessPieceColor Player)
+{
+  int Result = 0;
+  /* Material value */
+  Position Pos;
+  for (Pos.x = 0; Pos.x < 8; Pos.x++)
+    for (Pos.y = 0; Pos.y < 8; Pos.y++)
+      if (Cases[Pos.x][Pos.y] != NULL)
+        Result += Evaluate(Pos, Player);
+  /* Value a of bishop pair (from 10 to 90 based on pawns on the board) */
+  if (BlackBishopCount == 2)
+    Result += ((18-BlackPawnCount-WhitePawnCount)/10)*(Player == Black ? 50 : -50);
+  if (WhiteBishopCount == 2)
+    Result += ((18-BlackPawnCount-WhitePawnCount)/10)*(Player == White ? 50 : -50);
+  /* Value of castling */
+  //if (BlackKingCastled)
+  //  Result += (Player == Black ? 150 : -150);
+  //if (WhiteKingCastled)
+  //  Result += (Player == White ? 150 : -150);
+  /* Value of being able to castle */
+  if ((IsCastlingAvailable(Black, false) || IsCastlingAvailable(Black, true)) && !BlackKingCastled)
+    Result += (Player == Black ? 50 : -50);
+  if ((IsCastlingAvailable(White, false) || IsCastlingAvailable(White, true)) && !WhiteKingCastled)
+    Result += (Player == White ? 50 : -50);
+  /* Value of a checkmate */
+  if (IsKingCheck(Black) && IsKingMate(Black))
+    Result += (Player == Black ? -1000000 : 1000000);
+  if (IsKingCheck(White) && IsKingMate(White))
+    Result += (Player == White ? -1000000 : 1000000);
+  return Result;
+}
+
+int ChessBoard::Evaluate(const Position Pos, const ChessPieceColor Player)
+{
+  if (IsPositionValid(Pos) && Cases[Pos.x][Pos.y] != NULL)
+  {
+    int Result = 0;
+    ChessPiece* Piece = Cases[Pos.x][Pos.y];
+    /* Piece value */
+    Result += PieceValue(Piece->Color, Piece->Type);
+    /* Pawn bonus/penalty specific to it's position */
+    if (Piece->Type == Pawn)
+      Result += max((Piece->Color == Black ? 4-Pos.y : Pos.y-3),0)*10 + (IsPawnPassed(Pos) ? 20 : 0) - (IsPawnIsolated(Pos) ? IsolatedPawnsPenalty[(Piece->Color == White ? Pos.y : 7-Pos.y)] : 0) - (IsPawnDoubled(Pos) ? 10 : 0) - (IsPawnBlocked(Pos) ? 20 : 0);
+    /* Piece mobility */
+    unsigned short Mobility = 0;
+    switch (Piece->Type)
+    {
+      case Pawn:
+      {
+        Position To = Position(Pos.x-1,(Piece->Color == White ? Pos.y+1 : Pos.y-1));
+        Mobility += (IsPieceMovementValid(Pos, To) && IsMovePossible(Pos, To));
+        To = Position(Pos.x,(Piece->Color == White ? Pos.y+1 : Pos.y-1));
+        Mobility += (IsPieceMovementValid(Pos, To) && IsMovePossible(Pos, To));
+        To = Position(Pos.x+1,(Piece->Color == White ? Pos.y+1 : Pos.y-1));
+        Mobility += (IsPieceMovementValid(Pos, To) && IsMovePossible(Pos, To));
+        To = Position(Pos.x,(Piece->Color == White ? Pos.y+2 : Pos.y-2));
+        Mobility += (IsPieceMovementValid(Pos, To) && IsMovePossible(Pos, To));
+        break;
+      }
+      case Rook:
+      {
+        Position To = Position(Pos.x-1, Pos.y);
+        Mobility += (IsPieceMovementValid(Pos, To) && IsMovePossible(Pos, To));
+        To = Position(Pos.x+1, Pos.y);
+        Mobility += (IsPieceMovementValid(Pos, To) && IsMovePossible(Pos, To));
+        To = Position(Pos.x, Pos.y-1);
+        Mobility += (IsPieceMovementValid(Pos, To) && IsMovePossible(Pos, To));
+        To = Position(Pos.x, Pos.y+1);
+        Mobility += (IsPieceMovementValid(Pos, To) && IsMovePossible(Pos, To));
+        break;
+      }
+      case Knight:
+      {
+        Position To = Position(Pos.x-2, Pos.y-1);
+        Mobility += (IsPieceMovementValid(Pos, To) && IsMovePossible(Pos, To));
+        To = Position(Pos.x-2, Pos.y+1);
+        Mobility += (IsPieceMovementValid(Pos, To) && IsMovePossible(Pos, To));
+        To = Position(Pos.x+2, Pos.y-1);
+        Mobility += (IsPieceMovementValid(Pos, To) && IsMovePossible(Pos, To));
+        To = Position(Pos.x+2, Pos.y+1);
+        Mobility += (IsPieceMovementValid(Pos, To) && IsMovePossible(Pos, To));
+        To = Position(Pos.x-1, Pos.y-2);
+        Mobility += (IsPieceMovementValid(Pos, To) && IsMovePossible(Pos, To));
+        To = Position(Pos.x+1, Pos.y-2);
+        Mobility += (IsPieceMovementValid(Pos, To) && IsMovePossible(Pos, To));
+        To = Position(Pos.x-1, Pos.y+2);
+        Mobility += (IsPieceMovementValid(Pos, To) && IsMovePossible(Pos, To));
+        To = Position(Pos.x+1, Pos.y+2);
+        Mobility += (IsPieceMovementValid(Pos, To) && IsMovePossible(Pos, To));
+        break;
+      }
+      case Bishop:
+      {
+        Position To = Position(Pos.x-1, Pos.y-1);
+        Mobility += (IsPieceMovementValid(Pos, To) && IsMovePossible(Pos, To));
+        To = Position(Pos.x-1, Pos.y+1);
+        Mobility += (IsPieceMovementValid(Pos, To) && IsMovePossible(Pos, To));
+        To = Position(Pos.x+1, Pos.y-1);
+        Mobility += (IsPieceMovementValid(Pos, To) && IsMovePossible(Pos, To));
+        To = Position(Pos.x+1, Pos.y+1);
+        Mobility += (IsPieceMovementValid(Pos, To) && IsMovePossible(Pos, To));
+        break;
+      }
+      case Queen:
+      {
+        Position To = Position(Pos.x-1, Pos.y);
+        Mobility += (IsPieceMovementValid(Pos, To) && IsMovePossible(Pos, To));
+        To = Position(Pos.x+1, Pos.y);
+        Mobility += (IsPieceMovementValid(Pos, To) && IsMovePossible(Pos, To));
+        To = Position(Pos.x, Pos.y-1);
+        Mobility += (IsPieceMovementValid(Pos, To) && IsMovePossible(Pos, To));
+        To = Position(Pos.x, Pos.y+1);
+        Mobility += (IsPieceMovementValid(Pos, To) && IsMovePossible(Pos, To));
+        To = Position(Pos.x-1, Pos.y-1);
+        Mobility += (IsPieceMovementValid(Pos, To) && IsMovePossible(Pos, To));
+        To = Position(Pos.x-1, Pos.y+1);
+        Mobility += (IsPieceMovementValid(Pos, To) && IsMovePossible(Pos, To));
+        To = Position(Pos.x+1, Pos.y-1);
+        Mobility += (IsPieceMovementValid(Pos, To) && IsMovePossible(Pos, To));
+        To = Position(Pos.x+1, Pos.y+1);
+        Mobility += (IsPieceMovementValid(Pos, To) && IsMovePossible(Pos, To));
+        break;
+      }
+      case King:
+      {
+        Position To = Position(Pos.x-1, Pos.y);
+        Mobility += (IsPieceMovementValid(Pos, To) && IsMovePossible(Pos, To));
+        To = Position(Pos.x+1, Pos.y);
+        Mobility += (IsPieceMovementValid(Pos, To) && IsMovePossible(Pos, To));
+        To = Position(Pos.x, Pos.y-1);
+        Mobility += (IsPieceMovementValid(Pos, To) && IsMovePossible(Pos, To));
+        To = Position(Pos.x, Pos.y+1);
+        Mobility += (IsPieceMovementValid(Pos, To) && IsMovePossible(Pos, To));
+        To = Position(Pos.x-1, Pos.y-1);
+        Mobility += (IsPieceMovementValid(Pos, To) && IsMovePossible(Pos, To));
+        To = Position(Pos.x-1, Pos.y+1);
+        Mobility += (IsPieceMovementValid(Pos, To) && IsMovePossible(Pos, To));
+        To = Position(Pos.x+1, Pos.y-1);
+        Mobility += (IsPieceMovementValid(Pos, To) && IsMovePossible(Pos, To));
+        To = Position(Pos.x+1, Pos.y+1);
+        Mobility += (IsPieceMovementValid(Pos, To) && IsMovePossible(Pos, To));
+        To = Position(Pos.x+2, Pos.y);
+        Mobility += (IsPieceMovementValid(Pos, To) && IsMovePossible(Pos, To));
+        To = Position(Pos.x-2, Pos.y);
+        Mobility += (IsPieceMovementValid(Pos, To) && IsMovePossible(Pos, To));
+        break;
+      }
+      default:
+        break;
+    }
+    Result += Mobility*10;
+    return (Piece->Color == Player ? Result : -Result);
+  }
+  return 0;
 }
 
 Position ChessBoard::FindStartingPos(const Position From, const Position To, const ChessPieceType Type, const ChessPieceColor Color)
@@ -169,143 +434,44 @@ LinkedList<PossibleChessMove>* ChessBoard::GetPossibleMoves(const ChessPieceColo
   return Result;
 }
 
-int ChessBoard::PieceMobility(const Position Pos)
+int ChessBoard::PieceValue(const ChessPieceColor Color, const ChessPieceType Type)
 {
-  unsigned short Result = 0;
-  if (IsPositionValid(Pos))
+  /* Material value (based on Larry Kaufman) */
+  switch (Type)
   {
-    ChessPiece* Piece = Cases[Pos.x][Pos.y];
-    if (Piece != NULL)
-    {
-      switch (Piece->Type)
-      {
-        case Pawn:
-        {
-          Position To = Position(Pos.x-1,(Piece->Color == White ? Pos.y+1 : Pos.y-1));
-          Result += (IsPieceMovementValid(Pos, To) && IsMovePossible(Pos, To));
-          To = Position(Pos.x,(Piece->Color == White ? Pos.y+1 : Pos.y-1));
-          Result += (IsPieceMovementValid(Pos, To) && IsMovePossible(Pos, To));
-          To = Position(Pos.x+1,(Piece->Color == White ? Pos.y+1 : Pos.y-1));
-          Result += (IsPieceMovementValid(Pos, To) && IsMovePossible(Pos, To));
-          To = Position(Pos.x,(Piece->Color == White ? Pos.y+2 : Pos.y-2));
-          Result += (IsPieceMovementValid(Pos, To) && IsMovePossible(Pos, To));
-          break;
-        }
-        case Rook:
-        {
-          Position To = Position(Pos.x-1, Pos.y);
-          Result += (IsPieceMovementValid(Pos, To) && IsMovePossible(Pos, To));
-          To = Position(Pos.x+1, Pos.y);
-          Result += (IsPieceMovementValid(Pos, To) && IsMovePossible(Pos, To));
-          To = Position(Pos.x, Pos.y-1);
-          Result += (IsPieceMovementValid(Pos, To) && IsMovePossible(Pos, To));
-          To = Position(Pos.x, Pos.y+1);
-          Result += (IsPieceMovementValid(Pos, To) && IsMovePossible(Pos, To));
-          break;
-        }
-        case Knight:
-        {
-          Position To = Position(Pos.x-2, Pos.y-1);
-          Result += (IsPieceMovementValid(Pos, To) && IsMovePossible(Pos, To));
-          To = Position(Pos.x-2, Pos.y+1);
-          Result += (IsPieceMovementValid(Pos, To) && IsMovePossible(Pos, To));
-          To = Position(Pos.x+2, Pos.y-1);
-          Result += (IsPieceMovementValid(Pos, To) && IsMovePossible(Pos, To));
-          To = Position(Pos.x+2, Pos.y+1);
-          Result += (IsPieceMovementValid(Pos, To) && IsMovePossible(Pos, To));
-          To = Position(Pos.x-1, Pos.y-2);
-          Result += (IsPieceMovementValid(Pos, To) && IsMovePossible(Pos, To));
-          To = Position(Pos.x+1, Pos.y-2);
-          Result += (IsPieceMovementValid(Pos, To) && IsMovePossible(Pos, To));
-          To = Position(Pos.x-1, Pos.y+2);
-          Result += (IsPieceMovementValid(Pos, To) && IsMovePossible(Pos, To));
-          To = Position(Pos.x+1, Pos.y+2);
-          Result += (IsPieceMovementValid(Pos, To) && IsMovePossible(Pos, To));
-          break;
-        }
-        case Bishop:
-        {
-          Position To = Position(Pos.x-1, Pos.y-1);
-          Result += (IsPieceMovementValid(Pos, To) && IsMovePossible(Pos, To));
-          To = Position(Pos.x-1, Pos.y+1);
-          Result += (IsPieceMovementValid(Pos, To) && IsMovePossible(Pos, To));
-          To = Position(Pos.x+1, Pos.y-1);
-          Result += (IsPieceMovementValid(Pos, To) && IsMovePossible(Pos, To));
-          To = Position(Pos.x+1, Pos.y+1);
-          Result += (IsPieceMovementValid(Pos, To) && IsMovePossible(Pos, To));
-          break;
-        }
-        case Queen:
-        {
-          Position To = Position(Pos.x-1, Pos.y);
-          Result += (IsPieceMovementValid(Pos, To) && IsMovePossible(Pos, To));
-          To = Position(Pos.x+1, Pos.y);
-          Result += (IsPieceMovementValid(Pos, To) && IsMovePossible(Pos, To));
-          To = Position(Pos.x, Pos.y-1);
-          Result += (IsPieceMovementValid(Pos, To) && IsMovePossible(Pos, To));
-          To = Position(Pos.x, Pos.y+1);
-          Result += (IsPieceMovementValid(Pos, To) && IsMovePossible(Pos, To));
-          To = Position(Pos.x-1, Pos.y-1);
-          Result += (IsPieceMovementValid(Pos, To) && IsMovePossible(Pos, To));
-          To = Position(Pos.x-1, Pos.y+1);
-          Result += (IsPieceMovementValid(Pos, To) && IsMovePossible(Pos, To));
-          To = Position(Pos.x+1, Pos.y-1);
-          Result += (IsPieceMovementValid(Pos, To) && IsMovePossible(Pos, To));
-          To = Position(Pos.x+1, Pos.y+1);
-          Result += (IsPieceMovementValid(Pos, To) && IsMovePossible(Pos, To));
-          break;
-        }
-        case King:
-        {
-          Position To = Position(Pos.x-1, Pos.y);
-          Result += (IsPieceMovementValid(Pos, To) && IsMovePossible(Pos, To));
-          To = Position(Pos.x+1, Pos.y);
-          Result += (IsPieceMovementValid(Pos, To) && IsMovePossible(Pos, To));
-          To = Position(Pos.x, Pos.y-1);
-          Result += (IsPieceMovementValid(Pos, To) && IsMovePossible(Pos, To));
-          To = Position(Pos.x, Pos.y+1);
-          Result += (IsPieceMovementValid(Pos, To) && IsMovePossible(Pos, To));
-          To = Position(Pos.x-1, Pos.y-1);
-          Result += (IsPieceMovementValid(Pos, To) && IsMovePossible(Pos, To));
-          To = Position(Pos.x-1, Pos.y+1);
-          Result += (IsPieceMovementValid(Pos, To) && IsMovePossible(Pos, To));
-          To = Position(Pos.x+1, Pos.y-1);
-          Result += (IsPieceMovementValid(Pos, To) && IsMovePossible(Pos, To));
-          To = Position(Pos.x+1, Pos.y+1);
-          Result += (IsPieceMovementValid(Pos, To) && IsMovePossible(Pos, To));
-          To = Position(Pos.x+2, Pos.y);
-          Result += (IsPieceMovementValid(Pos, To) && IsMovePossible(Pos, To));
-          To = Position(Pos.x-2, Pos.y);
-          Result += (IsPieceMovementValid(Pos, To) && IsMovePossible(Pos, To));
-          break;
-        }
-        default:
-          break;
-      }
-    }
+    case Pawn:
+      /* Value of a pawn */
+      return 100;
+    case Knight:
+      /* Value of a knight (adjusted based on number of pieces and with bonus per extra pawns) */
+      return 325 - (32-BlackPieceCount-WhitePieceCount)*2 + ((Color == Black ? BlackPawnCount : WhitePawnCount)-5)*5;
+    case Bishop:
+      /* Value of a bishop (adjusted based on number of pieces on the board) */
+      return 325 - (32-BlackPieceCount-WhitePieceCount)*2;
+    case Rook:
+      /* Value of a rook (with bonus if no queen and penalty per extra pawns)*/
+      return 500 + ((Color == Black && !BlackHasQueen) || (Color == White && !WhiteHasQueen) ? 100 : 0) - ((Color == Black ? BlackPawnCount : WhitePawnCount)-5)*10;
+    case Queen:
+      /* Value of a queen */
+      return 975;
+    default:
+      return 0;
   }
-  return Result;
 }
 
-void ChessBoard::Hash(HashTableKey Key)
+__int64 ChessBoard::Hash()
 {
-  for (int j=0; j < 8; j++)
-    for (int i=0; i < 8; i++)
-    {
-      Key[j] = (Key[j] << 4);
-      if (Cases[i][j] != NULL)
-        Key[j] |= Cases[i][j]->Hash();
-    }
+  return HashKey1 | (HashKey2 << 32);
 }
 
 bool ChessBoard::IsCastlingAvailable(const ChessPieceColor Color, const bool Small)
 {
   Position Pos = (Color == White ? WhiteKingPos : BlackKingPos);
-  if (!(Color == White ? WhiteKingCastled : BlackKingCastled) && Cases[Pos.x][Pos.y] != NULL && Cases[Pos.x][Pos.y]->TimesMoved == 0)
+  ChessPiece* King = Cases[Pos.x][Pos.y];
+  if (King != NULL && King->TimesMoved == 0)
   {
-    Pos.x = (Small ? 7 : 0);
-    if (Cases[Pos.x][Pos.y] != NULL && Cases[Pos.x][Pos.y]->Type == Rook && Cases[Pos.x][Pos.y]->Color == Color && Cases[Pos.x][Pos.y]->TimesMoved == 0)
-      return true;
+    ChessPiece* Piece = Cases[(Small ? 7 : 0)][Pos.y];
+    return (Piece != NULL && Piece->Type == Rook && Piece->Color == Color && Piece->TimesMoved == 0);
   }
   return false;
 }
@@ -315,10 +481,24 @@ bool ChessBoard::IsCastlingPossible(const ChessPieceColor Color, const bool Smal
   if (!IsKingCheck(Color) && IsCastlingAvailable(Color, Small))
   {
     Position Pos = (Color == White ? WhiteKingPos : BlackKingPos);
-    if (Small && Cases[Pos.x+1][Pos.y] == NULL && Cases[Pos.x+2][Pos.y] == NULL && !IsPieceAttacked(Position(Pos.x+1, Pos.y), Color) && !IsPieceAttacked(Position(Pos.x+2, Pos.y), Color))
-      return true;
-    else if (!Small && Cases[Pos.x-1][Pos.y] == NULL && Cases[Pos.x-2][Pos.y] == NULL && !IsPieceAttacked(Position(Pos.x-1, Pos.y), Color) && !IsPieceAttacked(Position(Pos.x-2, Pos.y), Color))
-      return true;
+    if (Small)
+    {
+      Pos.x ++;
+      bool Value = (Cases[Pos.x][Pos.y] == NULL && !IsPieceAttacked(Pos, Color));
+      Pos.x ++;
+      Value = Value && (Cases[Pos.x][Pos.y] == NULL && !IsPieceAttacked(Pos, Color));
+      return Value;
+    }
+    else
+    {
+      Pos.x --;
+      bool Value = (Cases[Pos.x][Pos.y] == NULL && !IsPieceAttacked(Pos, Color));
+      Pos.x --;
+      Value = Value && (Cases[Pos.x][Pos.y] == NULL && !IsPieceAttacked(Pos, Color));
+      Pos.x --;
+      Value = Value && (Cases[Pos.x][Pos.y] == NULL && !IsPieceAttacked(Pos, Color));
+      return Value;
+    }
   }
   return false;
 }
@@ -425,7 +605,7 @@ bool ChessBoard::IsPawnIsolated(const Position Pos)
   /* A pawn is isolated if there is no pawn of the same color in the adjacent columns */
   if (IsPositionValid(Pos) && Cases[Pos.x][Pos.y] != NULL && Cases[Pos.x][Pos.y]->Type == Pawn)
   {
-    for (int i = max(0, Pos.x-1); i <= min(7, Pos.x+1); i+=2)    // Skips i == x
+    for (int i = max(0, Pos.x-1); i <= min(7, Pos.x+1); i+=2) /* Skip i == x */
       for (int j = 0; j <= 7; j++)
         if (Cases[i][j] != NULL && Cases[i][j]->Type == Pawn && Cases[i][j]->Color == Cases[Pos.x][Pos.y]->Color)
           return false;
@@ -622,29 +802,30 @@ ChessPiece* ChessBoard::MovePiece(const Position From, const Position To, bool& 
   if (IsPositionValid(From) && IsPositionValid(To) && Cases[From.x][From.y] != NULL)
   {
     /* Move the piece */
+    ChessPiece* Piece = Cases[From.x][From.y];
     ChessPiece* CapturedPiece = Cases[To.x][To.y];
     Cases[To.x][To.y] = Cases[From.x][From.y];
     Cases[From.x][From.y] = NULL;
-    if (CapturedPiece == NULL && Cases[To.x][To.y]->Type == Pawn && abs(To.y-From.y) == abs(To.x-From.x))
+    if (CapturedPiece == NULL && Piece->Type == Pawn && abs(To.y-From.y) == abs(To.x-From.x))
     {
       CapturedPiece = RemovePiece(Position(To.x,From.y));
       EnPassant = true;
     }
     else
       EnPassant = false;
-    /* Update the piece's information */
-    Cases[To.x][To.y]->TimesMoved++;
-    if (Cases[To.x][To.y]->Type == King)
+    /* Update statistics */
+    Piece->TimesMoved++;
+    if (Piece->Type == King)
     {
-      /* Update the position of the king */
-      if (Cases[To.x][To.y]->Color == White)
-        WhiteKingPos = To;
-      else
+      if (Piece->Color == Black)
         BlackKingPos = To;
+      else
+        WhiteKingPos = To;
+
       /* Move the rook if the king castled */
       if (abs(To.x-From.x) == 2)
       {
-        if (Cases[To.x][To.y]->Color == White)
+        if (Piece->Color == White)
           WhiteKingCastled = true;
         else
           BlackKingCastled = true;
@@ -660,43 +841,84 @@ ChessPiece* ChessBoard::MovePiece(const Position From, const Position To, bool& 
         }
       }
     }
-    /* Add to the list of moved pieces */
+    if (CapturedPiece != NULL)
+    {
+      if (CapturedPiece->Type == Queen)
+      {
+        if (CapturedPiece->Color == Black)
+          BlackHasQueen = false;
+        else
+          WhiteHasQueen = false;
+      }
+      else if (CapturedPiece->Type == Bishop)
+      {
+        if (CapturedPiece->Color == Black)
+          BlackBishopCount --;
+        else
+          WhiteBishopCount --;
+      }
+      else if (CapturedPiece->Type == Pawn)
+      {
+        if (CapturedPiece->Color == Black)
+          BlackPawnCount --;
+        else
+          WhitePawnCount --;
+      }
+      if (CapturedPiece->Color == Black)
+        BlackPieceCount --;
+      else
+        WhitePieceCount --;
+    }
     Position* Pos = new Position;
     Pos->x = To.x;
     Pos->y = To.y;
     MovedPieces.Add(Pos);
+    /* Update hash keys */
+    HashKey1 ^= HashValues[Piece->Type-Pawn + (Piece->Color == White ? 6 : 0)][From.x][From.y][0];
+    HashKey2 ^= HashValues[Piece->Type-Pawn + (Piece->Color == White ? 6 : 0)][From.x][From.y][1];
+    if (CapturedPiece != NULL)
+    {
+      HashKey1 ^= HashValues[CapturedPiece->Type-Pawn + (CapturedPiece->Color == White ? 6 : 0)][To.x][EnPassant ? From.y : To.y][0];
+      HashKey2 ^= HashValues[CapturedPiece->Type-Pawn + (CapturedPiece->Color == White ? 6 : 0)][To.x][EnPassant ? From.y : To.y][1];
+    }
+    HashKey1 ^= HashValues[Piece->Type-Pawn + (Piece->Color == White ? 6 : 0)][To.x][To.y][0];
+    HashKey2 ^= HashValues[Piece->Type-Pawn + (Piece->Color == White ? 6 : 0)][To.x][To.y][1];
     return CapturedPiece;
   }
   return NULL;
 }
 
-void ChessBoard::MoveBackPiece(const Position From, const Position To, ChessPiece* CapturedPiece, const bool EnPassant)
+void ChessBoard::MoveBackPiece(const Position From, const Position To, ChessPiece* CapturedPiece, bool EnPassant)
 {
   if (IsPositionValid(From) && IsPositionValid(To) && Cases[To.x][To.y] != NULL && Cases[From.x][From.y] == NULL)
   {
     /* Move back the piece */
+    ChessPiece* Piece = Cases[To.x][To.y];
     Cases[From.x][From.y] = Cases[To.x][To.y];
     Cases[To.x][To.y] = NULL;
     if (CapturedPiece != NULL)
     {
-      if (!EnPassant)
-        Cases[To.x][To.y] = CapturedPiece;
-      else if (Cases[From.x][From.y]->Type == Pawn && abs(To.y-From.y) == abs(To.x-From.x))
+      if (EnPassant && Piece->Type == Pawn && abs(To.y-From.y) == abs(To.x-From.x))
         Cases[To.x][From.y] = CapturedPiece;
+      else
+      {
+        Cases[To.x][To.y] = CapturedPiece;
+        EnPassant = false;
+      }
     }
-    /* Update the piece's information */
-    Cases[From.x][From.y]->TimesMoved--;
-    /* Update the position of the king */
-    if (Cases[From.x][From.y]->Type == King)
+    /* Update statistics */
+    Piece->TimesMoved--;
+    if (Piece->Type == King)
     {
-      if (Cases[From.x][From.y]->Color == White)
+      if (Piece->Color == White)
         WhiteKingPos = From;
       else
         BlackKingPos = From;
+
       /* Move back the rook if the king castled */
       if (abs(To.x-From.x) == 2)
       {
-        if (Cases[From.x][From.y]->Color == White)
+        if (Piece->Color == White)
           WhiteKingCastled = false;
         else
           BlackKingCastled = false;
@@ -712,9 +934,46 @@ void ChessBoard::MoveBackPiece(const Position From, const Position To, ChessPiec
         }
       }
     }
-    /* Delete from the list of moved pieces */
+    if (CapturedPiece != NULL)
+    {
+      if (CapturedPiece->Type == Queen)
+      {
+        if (CapturedPiece->Color == Black)
+          BlackHasQueen = true;
+        else
+          WhiteHasQueen = true;
+      }
+      else if (CapturedPiece->Type == Bishop)
+      {
+        if (CapturedPiece->Color == Black)
+          BlackBishopCount ++;
+        else
+          WhiteBishopCount ++;
+      }
+      else if (CapturedPiece->Type == Pawn)
+      {
+        if (CapturedPiece->Color == Black)
+          BlackPawnCount ++;
+        else
+          WhitePawnCount ++;
+      }
+      if (CapturedPiece->Color == Black)
+        BlackPieceCount ++;
+      else
+        WhitePieceCount ++;
+    }
     if (MovedPieces.Size() > 0)
       delete MovedPieces.Remove(MovedPieces.Size()-1);
+    /* Update hash keys */
+    HashKey1 ^= HashValues[Piece->Type-Pawn + (Piece->Color == White ? 6 : 0)][To.x][To.y][0];
+    HashKey2 ^= HashValues[Piece->Type-Pawn + (Piece->Color == White ? 6 : 0)][To.x][To.y][1];
+    if (CapturedPiece != NULL)
+    {
+      HashKey1 ^= HashValues[CapturedPiece->Type-Pawn + (CapturedPiece->Color == White ? 6 : 0)][To.x][EnPassant ? From.y : To.y][0];
+      HashKey2 ^= HashValues[CapturedPiece->Type-Pawn + (CapturedPiece->Color == White ? 6 : 0)][To.x][EnPassant ? From.y : To.y][1];
+    }
+    HashKey1 ^= HashValues[Piece->Type-Pawn + (Piece->Color == White ? 6 : 0)][From.x][From.y][0];
+    HashKey2 ^= HashValues[Piece->Type-Pawn + (Piece->Color == White ? 6 : 0)][From.x][From.y][1];
   }
 }
 
@@ -724,125 +983,51 @@ ChessPiece* ChessBoard::RemovePiece(const Position Pos)
   {
     ChessPiece* Piece = Cases[Pos.x][Pos.y];
     Cases[Pos.x][Pos.y] = NULL;
-    if (Piece != NULL && Piece->Type == King)
+    /* Update statistics */
+    if (Piece->Type == King)
     {
-      if (Piece->Color == White)
+      if (Piece->Color == Black)
       {
-        WhiteKingPos.x = -1;
-        WhiteKingPos.y = -1;
-      }
-      else
-      {
+        BlackKingCastled = false;
         BlackKingPos.x = -1;
         BlackKingPos.y = -1;
       }
+      else
+      {
+        WhiteKingCastled = false;
+        WhiteKingPos.x = -1;
+        WhiteKingPos.y = -1;
+      }
     }
+    else if (Piece->Type == Queen)
+    {
+      if (Piece->Color == Black)
+        BlackHasQueen = false;
+      else
+        WhiteHasQueen = false;
+    }
+    else if (Piece->Type == Bishop)
+    {
+      if (Piece->Color == Black)
+        BlackBishopCount --;
+      else
+        WhiteBishopCount --;
+    }
+    else if (Piece->Type == Pawn)
+    {
+      if (Piece->Color == Black)
+        BlackPawnCount --;
+      else
+        WhitePawnCount --;
+    }
+    if (Piece->Color == Black)
+      BlackPieceCount --;
+    else
+      WhitePieceCount --;
+    /* Update hash keys */
+    HashKey1 ^= HashValues[Piece->Type-Pawn + (Piece->Color == White ? 6 : 0)][Pos.x][Pos.y][0];
+    HashKey2 ^= HashValues[Piece->Type-Pawn + (Piece->Color == White ? 6 : 0)][Pos.x][Pos.y][1];
     return Piece;
   }
   return NULL;
-}
-
-int ChessBoard::Value()
-{
-  bool BlackHasQueen = false;
-  int BlackPieceCount = 0;
-  int BlackBishopCount = 0;
-  int BlackPawnCount = 0;
-  bool WhiteHasQueen = false;
-  int WhitePieceCount = 0;
-  int WhiteBishopCount = 0;
-  int WhitePawnCount = 0;
-  for (int x = 0; x < 8; x++)
-    for (int y = 0; y < 8; y++)
-      if (Cases[x][y] != NULL)
-      {
-        if (Cases[x][y]->Color == Black)
-        {
-          BlackPieceCount ++;
-          if (Cases[x][y]->Type == Queen)
-            BlackHasQueen = true;
-          else if (Cases[x][y]->Type == Pawn)
-            BlackPawnCount ++;
-          else if (Cases[x][y]->Type == Bishop)
-            BlackBishopCount ++;
-        }
-        else
-        {
-          WhitePieceCount ++;
-          if (Cases[x][y]->Type == Queen)
-            WhiteHasQueen = true;
-          else if (Cases[x][y]->Type == Pawn)
-            WhitePawnCount ++;
-          else if (Cases[x][y]->Type == Bishop)
-            WhiteBishopCount ++;
-        }
-      }
-  Position Pos;
-  int Result = 0;
-  for (Pos.x = 0; Pos.x < 8; Pos.x++)
-    for (Pos.y = 0; Pos.y < 8; Pos.y++)
-    {
-      ChessPiece* Piece = Cases[Pos.x][Pos.y];
-      if (Piece != NULL)
-      {
-        /* Material value (based on Larry Kaufman) */
-        int Value = 0;
-        switch (Piece->Type)
-        {
-          case Pawn:
-          {
-            /* Value of a pawn (with promotion bonus and passed bonus) */
-            Value = 100;+max((Piece->Color == Black ? 4-Pos.y : Pos.y-3),0)*10+(IsPawnPassed(Pos) ? 20 : 0);
-            /* Other penalties */
-            Value -= (IsPawnIsolated(Pos) ? IsolatedPawnsPenalty[(Piece->Color == White ? Pos.y : 7-Pos.y)] : 0)+(IsPawnDoubled(Pos) ? 10 : 0)+(IsPawnBlocked(Pos) ? 20 : 0);
-            break;
-          }
-          case Knight:
-          {
-            /* Value of a knight (adjusted based on number of pieces and with bonus per extra pawns) */
-            Value = 325-(32-BlackPieceCount-WhitePieceCount)*2+((Piece->Color == Black ? BlackPawnCount : WhitePawnCount)-5)*5;
-            break;
-          }
-          case Bishop:
-          {
-            /* Value of a bishop (adjusted based on number of pieces) */
-            Value = 325-(32-BlackPieceCount-WhitePieceCount)*2;
-            break;
-          }
-          case Rook:
-          {
-            /* Value of a rook (with bonus if no queen and penalty per extra pawns)*/
-            Value = 500+((Piece->Color == Black && !BlackHasQueen) || (Piece->Color == White && !WhiteHasQueen) ? 100 : 0)-((Piece->Color == Black ? BlackPawnCount : WhitePawnCount)-5)*10;
-            break;
-          }
-          case Queen:
-          {
-            /* Value of a queen */
-            Value = 975;
-            break;
-          }
-          default:
-            break;
-        }
-        /* Value of mobility */
-        Value += PieceMobility(Pos)*10;
-        /* Value of attacking (with bonus if defended) */
-        Value += (IsPieceAttacking(Pos) ? 10+(IsPieceDefended(Pos, Piece->Color) ? 10 : 0) : 0);
-        Result += (Piece->Color == White ? Value : -Value);
-      }
-    }
-  /* Value a of bishop pair (from 10 to 90 based on pawns on the board) */
-  if (BlackBishopCount == 2)
-    Result += ((18-BlackPawnCount-WhitePawnCount)/10)*-50;
-  if (WhiteBishopCount == 2)
-    Result += ((18-BlackPawnCount-WhitePawnCount)/10)*50;
-  /* Value of castling */
-  if (BlackKingCastled || IsCastlingAvailable(Black, false) || IsCastlingAvailable(Black, true))
-    Result += -100;
-  if (WhiteKingCastled || IsCastlingAvailable(White, false) || IsCastlingAvailable(White, true))
-    Result += 100;
-  /* Value of a checkmate */
-  Result += (IsKingCheck(Black) && IsKingMate(Black) ? 1000000 : 0);
-  Result += (IsKingCheck(White) && IsKingMate(White) ? -1000000 : 0);
-  return Result;
 }

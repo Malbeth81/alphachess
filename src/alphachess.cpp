@@ -1,7 +1,7 @@
 /*
 * AlphaChess.cpp
 *
-* Copyright (C) 2007-2010 Marc-André Lamothe.
+* Copyright (C) 2007-2011 Marc-André Lamothe.
 *
 * This program is free software; you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -18,6 +18,7 @@
 * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 */
 #include "alphachess.h"
+#include <limits.h>
 
 #define ChessTimerID 1
 #define MainServerAddress "alphachess.dlinkddns.com"
@@ -38,13 +39,11 @@ AlphaChess::AlphaChess(HINSTANCE hInstance, HWND hParent)
   /* Initialise class members */
   Handle = NULL;
   Cursor = LoadCursor(NULL, IDC_ARROW);
-  //Animation1 = (HICON)LoadImage(hInstance, "ID_ANIMATION", IMAGE_ICON, 0, 0, LR_SHARED);
   GameMenu = NULL;
   HelpMenu = NULL;
   MainMenu = NULL;
   ViewMenu = NULL;
 
-  Evaluator = NULL;
   Game = NULL;
   NetworkClient = NULL;
 
@@ -147,9 +146,9 @@ AlphaChess::AlphaChess(HINSTANCE hInstance, HWND hParent)
     AppendMenu(ViewMenu,IDS_MAINMENU_VIEW_SWITCH);
 
     HelpMenu = CreatePopupMenu();
-    AppendMenu(HelpMenu,IDS_MAINMENU_HELP_HELP);
-    AppendMenu(HelpMenu,IDS_MAINMENU_HELP_UPDATE);
-    AppendSeparator(HelpMenu);
+    //AppendMenu(HelpMenu,IDS_MAINMENU_HELP_HELP);
+    //AppendMenu(HelpMenu,IDS_MAINMENU_HELP_UPDATE);
+    //AppendSeparator(HelpMenu);
     AppendMenu(HelpMenu,IDS_MAINMENU_HELP_ABOUT);
 
     MainMenu = CreateMenu();
@@ -169,7 +168,7 @@ AlphaChess::AlphaChess(HINSTANCE hInstance, HWND hParent)
       /* Create a new network client */
       NetworkClient = new GameClient(Handle);
 
-      /* Intialise menu items */
+      /* Initialise menu items */
       EnableMenuItem(GameMenu,IDS_MAINMENU_GAME_TAKEBACKMOVE,MF_BYCOMMAND|MF_GRAYED);
       EnableMenuItem(GameMenu,IDS_MAINMENU_GAME_PAUSE,MF_BYCOMMAND|MF_GRAYED);
       EnableMenuItem(GameMenu,IDS_MAINMENU_GAME_OFFERDRAW,MF_BYCOMMAND|MF_GRAYED);
@@ -240,9 +239,6 @@ AlphaChess::~AlphaChess()
 
   /* Save settings */
   SaveSettings();
-
-  /* Close connection */
-  NetworkClient->Disconnect();
 
   /* Unregister the font currently used */
   ChessSet* Set = FindChessSet(CurrentChessSet);
@@ -412,8 +408,14 @@ void AlphaChess::LoadSettings()
   Top = GetPrivateProfileInt(Section,"Top",20,ConfigFileName.c_str());
   Width = GetPrivateProfileInt(Section,"Width",634,ConfigFileName.c_str());
   Height = GetPrivateProfileInt(Section,"Height",514,ConfigFileName.c_str());
-  strcpy(Section, "Player");
-  NetworkPlayerName = GetPrivateProfileString(Section,"Name","",ConfigFileName);
+  strcpy(Section, "Game");
+  BlackPlayerName = GetPrivateProfileString(Section,"BlackPlayerName","",ConfigFileName);
+  WhitePlayerName = GetPrivateProfileString(Section,"WhitePlayerName","",ConfigFileName);
+  WhitePlayerIsComputer = GetPrivateProfileBool(Section,"WhitePlayerIsComputer",false,ConfigFileName.c_str());
+  BlackPlayerIsComputer = GetPrivateProfileBool(Section,"BlackPlayerIsComputer",false,ConfigFileName.c_str());
+  GameMode = (ChessGameMode)GetPrivateProfileInt(Section,"GameMode",0,ConfigFileName.c_str());
+  TimePerMove = GetPrivateProfileInt(Section,"TimePerMove",2,ConfigFileName.c_str());
+  NetworkPlayerName = GetPrivateProfileString(Section,"NetworkPlayerName","",ConfigFileName);
   strcpy(Section, "Options");
   AutomaticUpdate = GetPrivateProfileBool(Section,"AutomaticUpdate",false,ConfigFileName.c_str());
   AlwaysOnTop = GetPrivateProfileBool(Section,"AlwaysOnTop",false,ConfigFileName.c_str());
@@ -625,7 +627,7 @@ void AlphaChess::Notify(const int Event, const void* Param)
       hChessBoardPanel->SetLocked(!Game->IsLastMoveDisplayed());
 
       /* Add a message in the chat panel */
-      if (NetworkGame)
+      if (NetworkGame && Game->GetState() >= Started)
       {
         if (Game->IsPlayerChecked() && Game->IsPlayerMated())
           hChatPanel->AddLine(Game->GetPlayer(Game->GetActivePlayer())->Name + " is checkmate.");
@@ -642,8 +644,8 @@ void AlphaChess::Notify(const int Event, const void* Param)
       if (!NetworkGame || (Game->GetActivePlayer() == White && NetworkClient->GetLocalPlayer() == NetworkClient->GetWhitePlayer()) || (Game->GetActivePlayer() == Black && NetworkClient->GetLocalPlayer() == NetworkClient->GetBlackPlayer()))
       {
         ChessPieceType Type = Queen;
-        //if (!AlwaysPromoteToQueen)
-        //  Type = (ChessPieceType)ShowPromotionDialog(Handle, FindChessSet(CurrentChessSet));
+        if (!AlwaysPromoteToQueen)
+          Type = ShowPromotionDialog((HINSTANCE)GetWindowLong(Handle, GWL_HINSTANCE), Handle, FindChessSet(CurrentChessSet));
         if (NetworkGame)
           NetworkClient->PromoteTo(Type);
         else
@@ -653,13 +655,6 @@ void AlphaChess::Notify(const int Event, const void* Param)
     }
     case TurnEnded:
     {
-      /* Update the chess board information layer */
-      hChessBoardPanel->ClearPossibleMoves();
-      if (Evaluator != NULL)
-        delete Evaluator;
-      Evaluator = Game->GetEvaluator();
-      Evaluator->AddObserver(this);
-
       if (NetworkGame)
       {
         /* Lock the chess board panel if it is not current player's turn */
@@ -677,23 +672,16 @@ void AlphaChess::Notify(const int Event, const void* Param)
             hChessBoardPanel->SetLocked(true);
         }
       }
-      else if ((WhitePlayerIsComputer && Game->GetActivePlayer() == White) || (BlackPlayerIsComputer && Game->GetActivePlayer() == Black))
-      {
-        /* Lock the chess board */
-        hChessBoardPanel->SetLocked(true);
-
-        /* Find a move and make it */
-        //ChessAiMove* Move = Ai.Execute(Game,Depth,Window)(6, 100);
-        //if (Move != NULL)
-        {
-          //Game->MakeMove(Move->From,Move->To);
-          //delete Move;
-        }
-      }
       else
       {
-        /* Unlock the chess board */
-        hChessBoardPanel->SetLocked(false);
+        /* Update the chess board information layer */
+        hChessBoardPanel->ClearPossibleMoves();
+
+        /* Begin calculating possible moves value */
+        Game->EvaluateMoves();
+
+        /* Lock/Unlock the chess board */
+        hChessBoardPanel->SetLocked((WhitePlayerIsComputer && Game->GetActivePlayer() == White) || (BlackPlayerIsComputer && Game->GetActivePlayer() == Black));
 
         /* Start the timer for the current player */
         LastTickCount = GetTickCount();
@@ -712,13 +700,31 @@ void AlphaChess::Notify(const int Event, const void* Param)
     case EvaluationCompleted:
     {
       LinkedList<PossibleChessMove>* Moves = (LinkedList<PossibleChessMove>*)Param;
-      PossibleChessMove* Move = Moves->GetFirst();
-      while (Move != NULL)
+      if (Moves != NULL)
       {
-        PossibleChessMove* NewMove = new PossibleChessMove;
-        *NewMove = *Move;
-        hChessBoardPanel->DisplayPossibleMove(NewMove);
-        Move = Moves->GetNext();
+        if ((WhitePlayerIsComputer && Game->GetActivePlayer() == White) || (BlackPlayerIsComputer && Game->GetActivePlayer() == Black))
+        {
+          /* Find a move and make it */
+          PossibleChessMove* Move = FindBestPossibleMove(Moves);
+          if (Move != NULL)
+            PostMessage(Handle, WM_CHESSPIECEMOVED, (WPARAM)new Position(Move->From), (LPARAM)new Position(Move->To));
+        }
+        else if (false)
+        {
+          /* Update the chess board information layer */
+          hChessBoardPanel->ClearPossibleMoves();
+          PossibleChessMove* Move = Moves->GetFirst();
+          while (Move != NULL)
+          {
+            hChessBoardPanel->DisplayPossibleMove(Move);
+            Move = Moves->GetNext();
+          }
+        }
+        /* Clean up */
+        if (!false)
+          while (Moves->Size() > 0)
+            delete Moves->Remove();
+        delete Moves;
       }
       break;
     }
@@ -764,8 +770,14 @@ void AlphaChess::SaveSettings()
   WritePrivateProfileInteger(Section,"Top",Top,ConfigFileName.c_str());
   WritePrivateProfileInteger(Section,"Width",Width,ConfigFileName.c_str());
   WritePrivateProfileInteger(Section,"Height",Height-(NetworkPanelsVisible ? BottomPanelHeight : 0),ConfigFileName.c_str());
-  strcpy(Section, "Player");
-  WritePrivateProfileString(Section,"Name",NetworkPlayerName.c_str(),ConfigFileName.c_str());
+  strcpy(Section, "Game");
+  WritePrivateProfileString(Section,"BlackPlayerName",BlackPlayerName.c_str(),ConfigFileName.c_str());
+  WritePrivateProfileString(Section,"WhitePlayerName",WhitePlayerName.c_str(),ConfigFileName.c_str());
+  WritePrivateProfileBool(Section,"WhitePlayerIsComputer",WhitePlayerIsComputer,ConfigFileName.c_str());
+  WritePrivateProfileBool(Section,"BlackPlayerIsComputer",BlackPlayerIsComputer,ConfigFileName.c_str());
+  WritePrivateProfileInteger(Section,"GameMode",(int)GameMode,ConfigFileName.c_str());
+  WritePrivateProfileInteger(Section,"TimePerMove",TimePerMove,ConfigFileName.c_str());
+  WritePrivateProfileString(Section,"NetworkPlayerName",NetworkPlayerName.c_str(),ConfigFileName.c_str());
   strcpy(Section, "Options");
   WritePrivateProfileBool(Section,"AutomaticUpdate",AutomaticUpdate,ConfigFileName.c_str());
   WritePrivateProfileBool(Section,"AlwaysOnTop",AlwaysOnTop,ConfigFileName.c_str());
@@ -898,12 +910,12 @@ void AlphaChess::ShowPlayerPanels(bool Value)
 
 void AlphaChess::UpdateInterface(WPARAM wParam, LPARAM lParam)
 {
-  // Messages sent from the network interface
+  /* Messages sent from the network interface */
   switch (LOWORD(wParam))
   {
     case ConnectionSucceeded:
     {
-      /* Initialize dialog values */
+      /* Initialise dialog values */
       NetworkGameDialogValues* Values = new NetworkGameDialogValues;
       Values->PlayerName = NetworkPlayerName;
       ChangeCursor(NULL);
@@ -1461,7 +1473,7 @@ LRESULT __stdcall AlphaChess::WindowProc(HWND hWnd, UINT Msg, WPARAM wParam, LPA
       Position* From = (Position*)wParam;
       Position* To = (Position*)lParam;
 
-      if (Window != NULL && Window->Game->IsLastMoveDisplayed())
+      if (Window != NULL && From != NULL && To != NULL && Window->Game->IsLastMoveDisplayed())
       {
         /* Stop the timer for the current player */
         KillTimer(hWnd, ChessTimerID);
@@ -1472,6 +1484,9 @@ LRESULT __stdcall AlphaChess::WindowProc(HWND hWnd, UINT Msg, WPARAM wParam, LPA
           return Window->Game->MakeMove(*From,*To);
         else if (Window->Game->IsMoveValid(*From,*To))
           Window->NetworkClient->MakeMove(From->x,From->y,To->x,To->y);
+        /* Clean up */
+        delete From;
+        delete To;
       }
       return 0;
     }

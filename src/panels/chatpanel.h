@@ -1,7 +1,7 @@
 /*
 * Chatpanel.h
 *
-* Copyright (C) 2007-2010 Marc-André Lamothe.
+* Copyright (C) 2007-2011 Marc-André Lamothe.
 *
 * This program is free software; you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -20,12 +20,11 @@
 #ifndef CHATPANEL_H_
 #define	CHATPANEL_H_
 
-#define _WIN32_IE 0x0300 // IE 3.0 controls
+#include "../system.h"
 #include <linkedlist.h>
 #include <math.h>
 #include <string>
 #include <winutils.h>
-#include <windows.h>
 
 #define WM_SENDMESSAGEBUTTONCLICKED WM_USER+503
 

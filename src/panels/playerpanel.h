@@ -1,7 +1,7 @@
 /*
 * PlayerPanel.h
 *
-* Copyright (C) 2007-2010 Marc-André Lamothe.
+* Copyright (C) 2007-2011 Marc-André Lamothe.
 *
 * This program is free software; you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -20,13 +20,12 @@
 #ifndef PLAYERPANEL_H_
 #define PLAYERPANEL_H_
 
-#define WINVER 0x0500
 #include "../chess/chessgame.h"
 #include "../resource.h"
+#include "../system.h"
 #include "../theme.h"
 #include <custombutton.h>
 #include <winutils.h>
-#include <windows.h>
 
 class PlayerPanel
 {

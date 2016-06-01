@@ -1,7 +1,7 @@
 /*
 * CaptureList.h - A Windows control to display captured pieces.
 *
-* Copyright (C) 2007-2010 Marc-André Lamothe.
+* Copyright (C) 2007-2011 Marc-André Lamothe.
 *
 * This program is free software; you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -20,10 +20,10 @@
 #ifndef CAPTUREPANEL_H_
 #define CAPTUREPANEL_H_
 
-#include "..\chess\chessgame.h"
-#include "..\theme.h"
+#include "../chess/chessgame.h"
+#include "../theme.h"
+#include "../system.h"
 #include <winutils.h>
-#include <windows.h>
 
 class CapturePanel
 {

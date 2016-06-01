@@ -1,7 +1,7 @@
 /*
 * Chatpanel.cpp
 *
-* Copyright (C) 2007-2010 Marc-André Lamothe.
+* Copyright (C) 2007-2011 Marc-André Lamothe.
 *
 * This program is free software; you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -21,8 +21,6 @@
 
 const char ClassName[] = "ChatPanel";
 const char MessagesClassName[] = "ChatPanelMessages";
-
-extern char DefaultFontName[];
 
 ATOM ChatPanel::ClassAtom = 0;
 ATOM ChatPanel::MessagesClassAtom = 0;
@@ -108,9 +106,9 @@ ChatPanel::ChatPanel(HINSTANCE hInstance, HWND hParent, RECT* R)
       UpdateSize(Width, Height);
 
       /* Change the window's appearance */
-      HFONT Font = EasyCreateFont(NULL,DefaultFontName,9,0);
+      HFONT Font = EasyCreateFont(NULL,DefaultSystemFont,9,0);
       PostMessage(Input,WM_SETFONT,(WPARAM)Font,TRUE);
-      Font = EasyCreateFont(NULL,DefaultFontName,8,fsBold);
+      Font = EasyCreateFont(NULL,DefaultSystemFont,8,fsBold);
       PostMessage(Button,WM_SETFONT,(WPARAM)Font,TRUE);
 
       UpdateLineSize();
@@ -213,7 +211,7 @@ void ChatPanel::Paint()
       unsigned int Top = TopRow+max(0,(int)PS.rcPaint.top-2)/LineHeight;
       unsigned int Bottom = TopRow+max(0,(int)PS.rcPaint.bottom-2)/LineHeight;
       /* Paints lines */
-      HFONT OldFont = (HFONT)SelectObject(DC,EasyCreateFont(NULL,DefaultFontName,9,0));
+      HFONT OldFont = (HFONT)SelectObject(DC,EasyCreateFont(NULL,DefaultSystemFont,9,0));
       if (Top < Lines.Size())
       {
         int X = 2;
@@ -241,7 +239,7 @@ void ChatPanel::UpdateLineSize()
   {
     SIZE Size;
     HDC DC = GetWindowDC(Messages);
-    HFONT OldFont = (HFONT)SelectObject(DC,EasyCreateFont(NULL,DefaultFontName,9,0));
+    HFONT OldFont = (HFONT)SelectObject(DC,EasyCreateFont(NULL,DefaultSystemFont,9,0));
     /* Calculate the editor's cell size */
     GetTextExtentPoint32(DC, "Mj", 2, &Size);
     LineHeight = max(1, Size.cy);

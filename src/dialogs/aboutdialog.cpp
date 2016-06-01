@@ -1,7 +1,7 @@
 /*
 * AboutDialog.cpp - A dialog showing information about the application.
 *
-* Copyright (C) 2007-2010 Marc-André Lamothe.
+* Copyright (C) 2007-2011 Marc-André Lamothe.
 *
 * This program is free software; you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -62,7 +62,7 @@ static INT_PTR __stdcall AboutDialogProc(HWND hDlg, UINT uMsg, WPARAM wParam, LP
       /* Process control messages */
       switch (LOWORD(wParam))
       {
-        case IDCANCEL:        // Generic message sent by IsDialogMessage for Esc key
+        case IDCANCEL: /* Generic message sent by IsDialogMessage for Esc key */
         case IDOK:
         {
           PostMessage(hDlg, WM_CLOSE, 0, 0);

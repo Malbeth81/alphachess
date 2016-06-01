@@ -1,7 +1,7 @@
 /*
 * ChessEvaluator.h - Class that evaluates a chess move.
 *
-* Copyright (C) 2010 Marc-André Lamothe.
+* Copyright (C) 2011 Marc-André Lamothe.
 *
 * This program is free software; you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -21,31 +21,46 @@
 #define CHESSEVALUATOR_H_
 
 #include "chessboard.h"
+//#include <tr1/unordered_map>
+#include <map>
 #include <observer.h>
 #include <thread.h>
 
+//using namespace std::tr1;
+
 enum EvaluatorEvent { EvaluationCompleted = 10 };
 
-struct HashTableEntry
+//class PasstroughHash {
+//public:
+//  unsigned int operator() (const unsigned int &a) const
+//  {
+//    return a;
+//  };
+//};
+
+struct HashMapEntry
 {
-  HashTableKey Key;
   int Value;
-  int Depth;
+  bool Flag;
 };
 
-class ChessEvaluatorThread;
-class ChessEvaluator : public Observable, public Observer
+//typedef unordered_map<__int64, int, PasstroughHash> HashMap;
+typedef map<__int64, HashMapEntry> HashMap;
+
+class ChessEvaluator : public Observable, public Thread
 {
 public:
-  ChessEvaluator(ChessBoard* Board, ChessPieceColor PieceColor);
-  ~ChessEvaluator();
+  void Evaluate(ChessBoard* GameBoard, ChessPieceColor Player);
 
 private:
-  LinkedList<PossibleChessMove>* Moves;
-  LinkedList<ChessEvaluatorThread> Threads;
-  LinkedList<HashTableEntry> HashTable;
+  ChessBoard Board;
+  ChessPieceColor Color;
+  HashMap HashTable;
 
-  void Notify(const int Event, const void* Param);
+  int EvaluateMove(PossibleChessMove* Move, int Depth, int Alpha, int Beta);
+  void EvaluateMoves(LinkedList<PossibleChessMove>* Moves, int Depth);
+  int GetChessBoardValue();
+  unsigned int Run();
 };
 
 #endif

@@ -1,7 +1,7 @@
 /*
 * InputDialog.cpp
 *
-* Copyright (C) 2007-2010 Marc-André Lamothe.
+* Copyright (C) 2007-2011 Marc-André Lamothe.
 *
 * This program is free software; you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -21,9 +21,9 @@
 #define	INPUTDIALOG_H_
 
 #include "../resource.h"
+#include "../system.h"
 #include <string>
 #include <winutils.h>
-#include <windows.h>
 
 using namespace std;
 

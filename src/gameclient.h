@@ -20,11 +20,11 @@
 #ifndef GAMECLIENT_H_
 #define GAMECLIENT_H_
 
+#include "../../alphachessserver/src/gamedata.h"
+#include "system.h"
 #include <linkedlist.h>
 #include <string>
 #include <tcpclientsocket.h>
-#include <windows.h>
-#include "../../alphachessserver/src/gamedata.h"
 
 using namespace std;
 

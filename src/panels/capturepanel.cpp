@@ -1,7 +1,7 @@
 /*
 * CaptureList.cpp - A Windows control to display captured pieces.
 *
-* Copyright (C) 2007-2010 Marc-André Lamothe.
+* Copyright (C) 2007-2011 Marc-André Lamothe.
 *
 * This program is free software; you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -131,7 +131,7 @@ void CapturePanel::DrawChessPieces(HDC DC)
       }
       CurrentPlayer = !CurrentPlayer;
       /* Get next move */
-      if (Move == Game->GetDisplayedMove() || Game->GetDisplayedMove() == NULL)
+      if (Moves->Get(Game->GetDisplayedMove()) == NULL || Move == Moves->Get(Game->GetDisplayedMove()))
         Move = NULL;
       else
         Move = Moves->GetNext();

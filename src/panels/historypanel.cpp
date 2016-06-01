@@ -1,7 +1,7 @@
 /*
 * HistoryPanel.cpp
 *
-* Copyright (C) 2007-2010 Marc-André Lamothe.
+* Copyright (C) 2007-2011 Marc-André Lamothe.
 *
 * This program is free software; you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -21,8 +21,6 @@
 
 const char ClassName[] = "HistoryPanel";
 const char MoveListClassName[] = "HistoryPanelMoveList";
-
-extern char DefaultFontName[];
 
 ATOM HistoryPanel::ClassAtom = 0;
 ATOM HistoryPanel::MoveListClassAtom = 0;
@@ -49,7 +47,7 @@ HistoryPanel::HistoryPanel(HINSTANCE hInstance, HWND hParent, RECT* R)
   Set = NULL;
 
   IconsVisible = true;
-  strcpy(Font.Name, DefaultFontName);
+  strcpy(Font.Name, DefaultSystemFont);
   Font.Size = 9;
   Font.Style = 0;
   LineHeight = 16;
@@ -171,7 +169,15 @@ void HistoryPanel::Invalidate()
 {
   if (MoveList != NULL)
   {
+    /* Update list display */
     InvalidateRect(MoveList, NULL, FALSE);
+    /* Auto scrolldown */
+    if (Game != NULL)
+    {
+      int Count = Game->GetDisplayedMove()+1;
+      TopRow = max((Count/2+Count%2)-VisibleRows,0);
+    }
+    /* Update scrollbar display */
     UpdateScrollbars();
   }
 }
@@ -236,7 +242,7 @@ void HistoryPanel::DrawMoves(HDC DC, unsigned int First, unsigned int Last)
       int Y = 2;
       HFONT OldFont = (HFONT)SelectObject(DC,EasyCreateFont(DC, &Font));
       /* Draw the move */
-      for (unsigned int i=First*2; i < min((Last+1)*2, Moves->Size()); i++)
+      for (int i=First*2; i < min((Last+1)*2, Moves->Size()); i++)
       {
         SetBkMode(DC,TRANSPARENT);
         SetTextColor(DC, GetSysColor(COLOR_WINDOWTEXT));
@@ -251,7 +257,7 @@ void HistoryPanel::DrawMoves(HDC DC, unsigned int First, unsigned int Last)
           DeleteObject(SelectObject(DC,OldFont));
         }
         /* Highlight the move */
-        if (Moves->Get(i) == Game->GetDisplayedMove())
+        if (i == Game->GetDisplayedMove())
         {
           HBRUSH OldBrush = (HBRUSH)SelectObject(DC,CreateSolidBrush(GetSysColor(COLOR_HIGHLIGHT)));
           HPEN OldPen = (HPEN)SelectObject(DC,CreatePen(PS_SOLID,1,GetSysColor(COLOR_HIGHLIGHT)));
@@ -292,8 +298,8 @@ int HistoryPanel::LineCount()
 {
   if (Game != NULL)
   {
-    const LinkedList<ChessMove>* Moves = Game->GetMoves();
-    return Moves->Size()/2+Moves->Size()%2;
+    int Count = Game->GetMoves()->Size();
+    return Count/2+Count%2;
   }
   return 0;
 }
@@ -308,18 +314,18 @@ void HistoryPanel::MouseWheel(int Keys, int Delta, int x, int y)
     if (Keys & MK_CONTROL)
     {
       if (Delta > 0)
-        NewPos = NewPos -= VisibleRows;
+        NewPos = NewPos - VisibleRows;
       else
-        NewPos = NewPos += VisibleRows;
+        NewPos = NewPos + VisibleRows;
     }
     else
     {
       UINT ScrollSize = 3;
       SystemParametersInfo(SPI_GETWHEELSCROLLLINES, 0, &ScrollSize, 0);
       if (Delta > 0)
-        NewPos = NewPos -= ScrollSize;
+        NewPos = NewPos - ScrollSize;
       else
-        NewPos = NewPos += ScrollSize;
+        NewPos = NewPos + ScrollSize;
     }
     NewPos = max(0, min(NewPos, LineCount()-VisibleRows));
     ScrollWindow(MoveList, 0, (TopRow-NewPos)*LineHeight, NULL, NULL);

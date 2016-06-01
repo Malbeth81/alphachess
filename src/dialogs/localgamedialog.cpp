@@ -1,7 +1,7 @@
 /*
 * LocalGameDialog.cpp
 *
-* Copyright (C) 2007-2010 Marc-André Lamothe.
+* Copyright (C) 2007-2011 Marc-André Lamothe.
 *
 * This program is free software; you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -37,14 +37,60 @@ INT_PTR __stdcall LocalGameDialogProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARA
         {
           int Index = SendDlgItemMessage(hDlg, IDC_WHITEPLAYER, CB_GETCURSEL, 0, 0);
           if (Index == 1)
-            SendDlgItemMessage(hDlg, IDC_BLACKPLAYER, CB_SETCURSEL, Index, 0);
+          {
+            EnableWindow(GetDlgItem(hDlg,IDC_WHITEPLAYERNAME), FALSE);
+            SetWindowText(GetDlgItem(hDlg,IDC_WHITEPLAYERNAME), "Computer");
+            if (SendDlgItemMessage(hDlg, IDC_BLACKPLAYER, CB_GETCURSEL, 0, 0) == 1)
+            {
+              EnableWindow(GetDlgItem(hDlg,IDC_BLACKPLAYERNAME), TRUE);
+              SetWindowText(GetDlgItem(hDlg,IDC_BLACKPLAYERNAME), "");
+              SendDlgItemMessage(hDlg, IDC_BLACKPLAYER, CB_SETCURSEL, 0, 0);
+            }
+            SendDlgItemMessage(hDlg, IDC_GAMETYPE, CB_SETCURSEL, 0, 0);
+            EnableWindow(GetDlgItem(hDlg,IDC_GAMETYPE), FALSE);
+            EnableWindow(GetDlgItem(hDlg,IDC_MOVETIME), FALSE);
+          }
+          else
+          {
+            EnableWindow(GetDlgItem(hDlg,IDC_WHITEPLAYERNAME), TRUE);
+            SetWindowText(GetDlgItem(hDlg,IDC_WHITEPLAYERNAME), "");
+            if (SendDlgItemMessage(hDlg, IDC_BLACKPLAYER, CB_GETCURSEL, 0, 0) == 0)
+            {
+              EnableWindow(GetDlgItem(hDlg,IDC_GAMETYPE), TRUE);
+              if (SendDlgItemMessage(hDlg, IDC_GAMETYPE, CB_GETCURSEL, 0, 0) == 1)
+                EnableWindow(GetDlgItem(hDlg,IDC_MOVETIME), TRUE);
+            }
+          }
           break;
         }
         case IDC_BLACKPLAYER:
         {
           int Index = SendDlgItemMessage(hDlg, IDC_BLACKPLAYER, CB_GETCURSEL, 0, 0);
           if (Index == 1)
-            SendDlgItemMessage(hDlg, IDC_WHITEPLAYER, CB_SETCURSEL, Index, 0);
+          {
+            EnableWindow(GetDlgItem(hDlg,IDC_BLACKPLAYERNAME), FALSE);
+            SetWindowText(GetDlgItem(hDlg,IDC_BLACKPLAYERNAME), "Computer");
+            if (SendDlgItemMessage(hDlg, IDC_WHITEPLAYER, CB_GETCURSEL, 0, 0) == 1)
+            {
+              EnableWindow(GetDlgItem(hDlg,IDC_WHITEPLAYERNAME), TRUE);
+              SetWindowText(GetDlgItem(hDlg,IDC_WHITEPLAYERNAME), "");
+              SendDlgItemMessage(hDlg, IDC_WHITEPLAYER, CB_SETCURSEL, 0, 0);
+            }
+            SendDlgItemMessage(hDlg, IDC_GAMETYPE, CB_SETCURSEL, 0, 0);
+            EnableWindow(GetDlgItem(hDlg,IDC_GAMETYPE), FALSE);
+            EnableWindow(GetDlgItem(hDlg,IDC_MOVETIME), FALSE);
+          }
+          else
+          {
+            EnableWindow(GetDlgItem(hDlg,IDC_BLACKPLAYERNAME), TRUE);
+            SetWindowText(GetDlgItem(hDlg,IDC_BLACKPLAYERNAME), "");
+            if (SendDlgItemMessage(hDlg, IDC_WHITEPLAYER, CB_GETCURSEL, 0, 0) == 0)
+            {
+              EnableWindow(GetDlgItem(hDlg,IDC_GAMETYPE), TRUE);
+              if (SendDlgItemMessage(hDlg, IDC_GAMETYPE, CB_GETCURSEL, 0, 0) == 1)
+                EnableWindow(GetDlgItem(hDlg,IDC_MOVETIME), TRUE);
+            }
+          }
           break;
         }
         case IDCANCEL:
@@ -102,15 +148,20 @@ INT_PTR __stdcall LocalGameDialogProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARA
       PopulateComboList(hDlg, IDC_BLACKPLAYER, "Human;Computer");
 
       /* Set initial state */
-      SendDlgItemMessage(hDlg, IDC_GAMETYPE, CB_SETCURSEL, Values->GameMode, 0);
+      SendDlgItemMessage(hDlg, IDC_GAMETYPE, CB_SETCURSEL, !Values->BlackPlayerIsComputer && !Values->WhitePlayerIsComputer ? Values->GameMode : 0, 0);
+      EnableWindow(GetDlgItem(hDlg,IDC_GAMETYPE), !Values->BlackPlayerIsComputer && !Values->WhitePlayerIsComputer ? TRUE : FALSE);
       char* Str = inttostr(Values->TimePerMove);
       SetWindowText(GetDlgItem(hDlg,IDC_MOVETIME), Str);
       delete[] Str;
-      EnableWindow(GetDlgItem(hDlg,IDC_MOVETIME), Values->GameMode ? TRUE : FALSE);
+      EnableWindow(GetDlgItem(hDlg,IDC_MOVETIME), Values->GameMode && !Values->BlackPlayerIsComputer && !Values->WhitePlayerIsComputer ? TRUE : FALSE);
+
+      SendDlgItemMessage(hDlg, IDC_BLACKPLAYER, CB_SETCURSEL, Values->BlackPlayerIsComputer ? 1 : 0, 0);
+      EnableWindow(GetDlgItem(hDlg,IDC_BLACKPLAYERNAME), Values->BlackPlayerIsComputer ? FALSE : TRUE);
       SetWindowText(GetDlgItem(hDlg,IDC_BLACKPLAYERNAME), Values->BlackPlayerName.c_str());
+
+      SendDlgItemMessage(hDlg, IDC_WHITEPLAYER, CB_SETCURSEL, Values->WhitePlayerIsComputer ? 1 : 0, 0);
+      EnableWindow(GetDlgItem(hDlg,IDC_WHITEPLAYERNAME), Values->WhitePlayerIsComputer ? FALSE : TRUE);
       SetWindowText(GetDlgItem(hDlg,IDC_WHITEPLAYERNAME), Values->WhitePlayerName.c_str());
-      SendDlgItemMessage(hDlg, IDC_WHITEPLAYER, CB_SETCURSEL, Values->BlackPlayerIsComputer ? 1 : 0, 0);
-      SendDlgItemMessage(hDlg, IDC_BLACKPLAYER, CB_SETCURSEL, Values->WhitePlayerIsComputer ? 1 : 0, 0);
       return TRUE;
     }
   }

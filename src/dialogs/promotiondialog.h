@@ -1,7 +1,7 @@
 /*
 * PromotionDialog.h - A dialog that allows to choose between 4 piece type.
 *
-* Copyright (C) 2007-2010 Marc-André Lamothe.
+* Copyright (C) 2007-2011 Marc-André Lamothe.
 *
 * This program is free software; you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -20,13 +20,14 @@
 #ifndef PROMOTIONDIALOG_H_
 #define PROMOTIONDIALOG_H_
 
+#include "../chess/chessboard.h"
 #include "../resource.h"
+#include "../system.h"
 #include "../theme.h"
 #include <custombutton.h>
 #include <winutils.h>
-#include <windows.h>
 
 
-int ShowPromotionDialog(HINSTANCE Instance, HWND hWindow, ChessSet* Set);
+ChessPieceType ShowPromotionDialog(HINSTANCE Instance, HWND hParent, ChessSet* Set);
 
 #endif

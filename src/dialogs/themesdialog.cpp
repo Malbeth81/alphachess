@@ -1,7 +1,7 @@
 /*
 * ThemesDialog.cpp
 *
-* Copyright (C) 2007-2010 Marc-André Lamothe.
+* Copyright (C) 2007-2011 Marc-André Lamothe.
 *
 * This program is free software; you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -149,7 +149,7 @@ static BOOL __stdcall ThemesDialogProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPAR
             ThemesDialogValues* Values = (ThemesDialogValues*)GetWindowLong(hDlg, GWL_USERDATA);
 
             string Name;
-            if (InputDialog((HINSTANCE)GetWindowLong(hDlg, GWL_HINSTANCE), hDlg, "Create a new theme", "Enter a name for the new theme:", &Name, 3) & Name.length() > 0)
+            if (InputDialog((HINSTANCE)GetWindowLong(hDlg, GWL_HINSTANCE), hDlg, "Create a new theme", "Enter a name for the new theme:", &Name, 3) && Name.length() > 0)
             {
               /* Create the new theme */
               SaveTheme(hDlg, Values->ThemesDirectory, Name);
